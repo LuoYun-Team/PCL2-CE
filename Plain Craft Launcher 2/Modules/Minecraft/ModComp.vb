@@ -1,4 +1,5 @@
-﻿Imports System.Threading.Tasks
+﻿Imports System.Linq.Expressions
+Imports System.Threading.Tasks
 
 Public Module ModComp
 
@@ -919,6 +920,10 @@ NoSubtitle:
         ''' </summary>
         Public Source As CompSourceType = CompSourceType.Any
         ''' <summary>
+        ''' 是否禁用镜像源获取 Mod 结果，默认为 False。
+        ''' </summary>
+        Public DisableMirror As Boolean = False
+        ''' <summary>
         ''' 构造函数。
         ''' </summary>
         Public Sub New(Type As CompType, Storage As CompProjectStorage, TargetResultCount As Integer)
@@ -1132,8 +1137,9 @@ Retry:
         Dim CurseForgeThread As Thread = Nothing
         Dim ModrinthThread As Thread = Nothing
         Dim ResultsLock As New Object
-
+        Dim DisableMirror As Boolean = Task.Input.DisableMirror
         Try
+ModResultRetry:
 
             '启动 CurseForge 线程
             Dim CurseForgeUrl As String = Task.Input.GetCurseForgeAddress()
@@ -1141,10 +1147,12 @@ Retry:
             If CurseForgeUrl IsNot Nothing Then
                 CurseForgeThread = RunInNewThread(
                 Sub()
+
                     Try
                         '获取工程列表
+
                         Log("[Comp] 开始从 CurseForge 获取工程列表：" & CurseForgeUrl)
-                        Dim RequestResult As JObject = DlModRequest(CurseForgeUrl, IsJson:=True)
+                        Dim RequestResult As JObject = DlModRequest(CurseForgeUrl, IsJson:=True, DisableMirror)
                         Task.Progress += 0.2
                         Dim ProjectList As New List(Of CompProject)
                         For Each JsonEntry As JObject In RequestResult("data")
@@ -1158,6 +1166,7 @@ Retry:
                         Storage.CurseForgeTotal = RequestResult("pagination")("totalCount").ToObject(Of Integer)
                         Log($"[Comp] 从 CurseForge 获取到了 {ProjectList.Count} 个工程（已获取 {Storage.CurseForgeOffset} 个，共 {Storage.CurseForgeTotal} 个）")
                     Catch ex As Exception
+
                         Log(ex, "从 CurseForge 获取工程列表失败")
                         Storage.CurseForgeTotal = -1 'Storage.CurseForgeOffset
                         [Error] = ex
@@ -1173,8 +1182,9 @@ Retry:
                 ModrinthThread = RunInNewThread(
                 Sub()
                     Try
+
                         Log("[Comp] 开始从 Modrinth 获取工程列表：" & ModrinthUrl)
-                        Dim RequestResult As JObject = DlModRequest(ModrinthUrl, IsJson:=True)
+                        Dim RequestResult As JObject = DlModRequest(ModrinthUrl, IsJson:=True, DisableMirror)
                         Task.Progress += 0.2
                         Dim ProjectList As New List(Of CompProject)
                         For Each JsonEntry As JObject In RequestResult("hits")
@@ -1209,9 +1219,13 @@ Retry:
             Storage.ErrorMessage = Nothing
             If Not RawResults.Any() Then
                 If [Error] IsNot Nothing Then
+                    If Not DisableMirror Then
+                        DisableMirror = True
+                        GoTo ModResultRetry
+                    End If
                     Throw [Error]
-                Else
-                    If IsChineseSearch AndAlso Task.Input.Type <> CompType.Mod Then
+                    Else
+                        If IsChineseSearch AndAlso Task.Input.Type <> CompType.Mod Then
                         Throw New Exception($"{If(Task.Input.Type = CompType.ModPack, "整合包", "资源包")}搜索仅支持英文")
                     ElseIf Task.Input.Source = CompSourceType.CurseForge AndAlso Task.Input.Tag.StartsWithF("/") Then
                         Throw New Exception("CurseForge 不兼容所选的类型")
@@ -1625,55 +1639,85 @@ Retry:
     ''' 获取某个工程下的全部文件列表。
     ''' 必须在工作线程执行，失败会抛出异常。
     ''' </summary>
-    Public Function CompFilesGet(ProjectId As String, FromCurseForge As Boolean) As List(Of CompFile)
+    Public Function CompFilesGet(ProjectId As String, FromCurseForge As Boolean, Optional DisableMirror As Boolean = False) As List(Of CompFile)
         '获取工程对象
         Dim TargetProject As CompProject
-        If CompProjectCache.ContainsKey(ProjectId) Then '存在缓存
-            TargetProject = CompProjectCache(ProjectId)
-        ElseIf FromCurseForge Then 'CurseForge
-            TargetProject = New CompProject(DlModRequest("https://api.curseforge.com/v1/mods/" & ProjectId, IsJson:=True)("data"))
-        Else 'Modrinth
-            TargetProject = New CompProject(DlModRequest("https://api.modrinth.com/v2/project/" & ProjectId, IsJson:=True))
-        End If
+        Try
+CompResultRetry:
+            If CompProjectCache.ContainsKey(ProjectId) Then '存在缓存
+                TargetProject = CompProjectCache(ProjectId)
+            ElseIf FromCurseForge Then 'CurseForge
+                TargetProject = New CompProject(DlModRequest("https://api.curseforge.com/v1/mods/" & ProjectId, IsJson:=True, DisableMirror)("data"))
+            Else 'Modrinth
+                TargetProject = New CompProject(DlModRequest("https://api.modrinth.com/v2/project/" & ProjectId, IsJson:=True, DisableMirror))
+            End If
+        Catch ex As Exception
+            If Not DisableMirror Then
+                Log(ex, "[Comp] 使用镜像源获取工程信息失败")
+                DisableMirror = True
+                GoTo CompResultRetry
+            End If
+
+        End Try
+        DisableMirror = False
         '获取工程对象的文件列表
         If Not CompFilesCache.ContainsKey(ProjectId) Then '有缓存也不能直接返回，这时候前置 Mod 可能没获取（#5173）
             Log("[Comp] 开始获取文件列表：" & ProjectId)
             Dim ResultJsonArray As JArray
-            If FromCurseForge Then
-                'CurseForge
-                'HMCL 一次性请求了 10000 个文件，虽然不知道会不会出问题但先这样吧……（#5522）
-                ResultJsonArray = DlModRequest($"https://api.curseforge.com/v1/mods/{ProjectId}/files?pageSize=10000", IsJson:=True)("data")
-                '之前只请求一部分文件的方法备份如下：
-                'If TargetProject.Type = CompType.Mod Then 'Mod 使用每个版本最新的文件
-                '    ResultJsonArray = GetJson(DlModRequest("https://api.curseforge.com/v1/mods/files", "POST", "{""fileIds"": [" & Join(TargetProject.CurseForgeFileIds, ",") & "]}", "application/json"))("data")
-                'Else '否则使用全部文件
-                '    ResultJsonArray = DlModRequest($"https://api.curseforge.com/v1/mods/{ProjectId}/files?pageSize=999", IsJson:=True)("data")
-                'End If
-            Else
-                'Modrinth
-                ResultJsonArray = DlModRequest($"https://api.modrinth.com/v2/project/{ProjectId}/version", IsJson:=True)
-            End If
+            Try
+LocalCompCurseForgeFileResultRetry:
+                If FromCurseForge Then
+                    'CurseForge
+                    'HMCL 一次性请求了 10000 个文件，虽然不知道会不会出问题但先这样吧……（#5522）
+                    ResultJsonArray = DlModRequest($"https://api.curseforge.com/v1/mods/{ProjectId}/files?pageSize=10000", IsJson:=True)("data")
+                    '之前只请求一部分文件的方法备份如下：
+                    'If TargetProject.Type = CompType.Mod Then 'Mod 使用每个版本最新的文件
+                    '    ResultJsonArray = GetJson(DlModRequest("https://api.curseforge.com/v1/mods/files", "POST", "{""fileIds"": [" & Join(TargetProject.CurseForgeFileIds, ",") & "]}", "application/json"))("data")
+                    'Else '否则使用全部文件
+                    '    ResultJsonArray = DlModRequest($"https://api.curseforge.com/v1/mods/{ProjectId}/files?pageSize=999", IsJson:=True)("data")
+                    'End If
+                Else
+                    'Modrinth
+                    ResultJsonArray = DlModRequest($"https://api.modrinth.com/v2/project/{ProjectId}/version", IsJson:=True)
+                End If
+            Catch ex As Exception
+                If Not DisableMirror Then
+                    Log(ex, "[Comp] 使用镜像源获取工程信息失败")
+                    DisableMirror = True
+                    GoTo LocalCompCurseForgeFileResultRetry
+                End If
+            End Try
             CompFilesCache(ProjectId) = ResultJsonArray.Select(Function(a) New CompFile(a, TargetProject.Type)).
                 Where(Function(a) a.Available).ToList.Distinct(Function(a, b) a.Id = b.Id) 'CurseForge 可能会重复返回相同项（#1330）
         End If
+        DisableMirror = False
         '获取前置 Mod 列表
         If TargetProject.Type <> CompType.Mod Then Return CompFilesCache(ProjectId)
         Dim Deps As List(Of String) = CompFilesCache(ProjectId).SelectMany(Function(f) f.RawDependencies).Distinct().ToList
         Dim UndoneDeps = Deps.Where(Function(f) Not CompProjectCache.ContainsKey(f)).ToList
         '获取前置 Mod 工程信息
-        If UndoneDeps.Any Then
-            Log($"[Comp] {ProjectId} 文件列表中还需要获取信息的前置 Mod：{Join(UndoneDeps, "，")}")
-            Dim Projects As JArray
-            If TargetProject.FromCurseForge Then
-                Projects = GetJson(DlModRequest("https://api.curseforge.com/v1/mods",
+        Try
+LocalCompModrinthFileResultRetry:
+            If UndoneDeps.Any Then
+                Log($"[Comp] {ProjectId} 文件列表中还需要获取信息的前置 Mod：{Join(UndoneDeps, "，")}")
+                Dim Projects As JArray
+                If TargetProject.FromCurseForge Then
+                    Projects = GetJson(DlModRequest("https://api.curseforge.com/v1/mods",
                     "POST", "{""modIds"": [" & Join(UndoneDeps, ",") & "]}", "application/json"))("data")
-            Else
-                Projects = DlModRequest($"https://api.modrinth.com/v2/projects?ids=[""{Join(UndoneDeps, """,""")}""]", IsJson:=True)
+                Else
+                    Projects = DlModRequest($"https://api.modrinth.com/v2/projects?ids=[""{Join(UndoneDeps, """,""")}""]", IsJson:=True)
+                End If
+                For Each Project In Projects
+                    Dim NewProject As New CompProject(Project) '在 New 的时候就添加了缓存
+                Next
             End If
-            For Each Project In Projects
-                Dim NewProject As New CompProject(Project) '在 New 的时候就添加了缓存
-            Next
-        End If
+        Catch ex As Exception
+            If Not DisableMirror Then
+                Log(ex, "[Comp] 使用镜像源获取工程信息失败")
+                DisableMirror = True
+                GoTo LocalCompModrinthFileResultRetry
+            End If
+        End Try
         '更新前置 Mod 信息
         If Deps.Any Then
             For Each DepProject In Deps.Where(Function(id) CompProjectCache.ContainsKey(id)).Select(Function(id) CompProjectCache(id))

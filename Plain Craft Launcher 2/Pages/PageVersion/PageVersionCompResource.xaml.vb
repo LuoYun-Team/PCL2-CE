@@ -84,8 +84,8 @@
         Try
             CompProjectCache.Clear()
             CompFilesCache.Clear()
-            File.Delete(PathTemp & "Cache\LocalComp.json")
             Log("[CompResource] 由于点击刷新按钮，清理本地工程信息缓存")
+            File.Delete(PathTemp & "Cache\LocalComp.json")
         Catch ex As Exception
             Log(ex, "强制刷新时清理本地工程信息缓存失败")
         End Try

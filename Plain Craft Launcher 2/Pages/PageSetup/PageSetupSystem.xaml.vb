@@ -26,7 +26,7 @@
 
         'Mod 与整合包
         ComboDownloadTranslateV2.SelectedIndex = Setup.Get("ToolDownloadTranslateV2")
-        'ComboDownloadMod.SelectedIndex = Setup.Get("ToolDownloadMod")
+        ComboDownloadMod.SelectedIndex = Setup.Get("ToolDownloadMod")
         ComboModLocalNameStyle.SelectedIndex = Setup.Get("ToolModLocalNameStyle")
         CheckDownloadIgnoreQuilt.Checked = Setup.Get("ToolDownloadIgnoreQuilt")
         CheckDownloadClipboard.Checked = Setup.Get("ToolDownloadClipboard")

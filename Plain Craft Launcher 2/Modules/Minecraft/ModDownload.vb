@@ -1004,10 +1004,14 @@
     Public DlCleanroomListOfficialLoader As New LoaderTask(Of Integer, DlCleanroomListResult)("DlCleanroomList Official", AddressOf DlCleanroomListOfficialMain)
     Private Sub DlCleanroomListOfficialMain(Loader As LoaderTask(Of Integer, DlCleanroomListResult))
         '获取版本列表 JSON
-        Dim ResultLatest As String = NetGetCodeByRequestRetry("https://api.github.com/repos/CleanroomMC/Cleanroom/releases", UseBrowserUserAgent:=True)
-        If ResultLatest.Length < 100 Then Throw New Exception("获取到的版本列表长度不足（" & ResultLatest & "）")
-        '解析
+        Dim ResultLatest As String = Nothing
         Try
+            Dim ResultLatest As String = NetGetCodeByRequestRetry("https://api.github.com/repos/CleanroomMC/Cleanroom/releases", UseBrowserUserAgent:=True)
+        Catch ex As Exception
+        End Try
+        If ResultLatest.Length < 100 Then Throw New Exception("获取到的版本列表长度不足（" & ResultLatest & "）")
+            '解析
+            Try
             Loader.Output = New DlCleanroomListResult With {.IsOfficial = True, .SourceName = "Cleanroom 官方源",
                 .Value = GetCleanroomEntries(ResultLatest)}
         Catch ex As Exception
@@ -1331,7 +1335,7 @@
     ''' 对可能涉及 Mod 镜像源的请求进行处理，返回字符串或 JObject。
     ''' 调用 NetGetCodeByRequest，会进行重试。
     ''' </summary>
-    Public Function DlModRequest(Url As String, Optional IsJson As Boolean = False) As Object
+    Public Function DlModRequest(Url As String, Optional IsJson As Boolean = False, Optional DisableMirror As Boolean = False) As Object
         Dim Urls As New List(Of KeyValuePair(Of String, Integer))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 20))
@@ -1372,24 +1376,24 @@
         Dim Urls As New List(Of KeyValuePair(Of String, Integer))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 20))
-        'Dim McimUrl As String = DlSourceModGet(Url)
-        'If McimUrl <> Url Then
-        '   Select Case Setup.Get("ToolDownloadMod")
-        '       Case 0
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '       Case 1
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '       Case Else
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '   End Select
-        'End If
+        Dim McimUrl As String = DlSourceModGet(Url)
+        If McimUrl <> Url Then
+            Select Case Setup.Get("ToolDownloadMod")
+                Case 0
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                Case 1
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+                Case Else
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+            End Select
+        End If
         Dim Exs As String = ""
         For Each Source In Urls
             Try
@@ -1447,15 +1451,17 @@
         End If
     End Function
 
-    Public Function DlSourceModGet(Original As String) As String
+    Public Function DlSourceModGet(Original As String, Optional DisableMirror As Boolean = False) As String
+        If DisableMirror Then Return Original
         Return Original.
-            Replace("api.modrinth.com", "mod.mcimirror.top/modrinth").
-            Replace("staging-api.modrinth.com", "mod.mcimirror.top/modrinth").
-            Replace("cdn.modrinth.com", "mod.mcimirror.top").
-            Replace("api.curseforge.com", "mod.mcimirror.top/curseforge").
-            Replace("edge.forgecdn.net", "mod.mcimirror.top").
-            Replace("mediafilez.forgecdn.net", "mod.mcimirror.top").
-            Replace("media.forgecdn.net", "mod.mcimirror.top")
+        Replace("api.modrinth.com", "mod.mcimirror.top/modrinth").
+        Replace("staging-api.modrinth.com", "mod.mcimirror.top/modrinth").
+        Replace("api.curseforge.com", "mod.mcimirror.top/curseforge").
+        Replace("http:", "https:") '.
+        '    Replace("cdn.modrinth.com", "mod.mcimirror.top").
+        '    Replace("edge.forgecdn.net", "mod.mcimirror.top").
+        '    Replace("mediafilez.forgecdn.net", "mod.mcimirror.top").
+        '    Replace("media.forgecdn.net", "mod.mcimirror.top")
     End Function
 
     Public Function DlSourceLauncherOrMetaGet(Original As String) As String()
