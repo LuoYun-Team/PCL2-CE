@@ -1,4 +1,4 @@
-﻿Imports System.IO.Compression
+Imports System.IO.Compression
 
 Public Class ExportOption
     Public Property Title As String
