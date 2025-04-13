@@ -1,3 +1,5 @@
+Public Class PageDownloadCompFavorites
+
 #Region "加载器信息"
     '加载器信息
     Public Loader As New LoaderTask(Of List(Of String), List(Of CompProject))("CompProject Favorites", AddressOf CompFavoritesGet, AddressOf LoaderInput)
