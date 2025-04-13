@@ -1003,21 +1003,17 @@
     ''' </summary>
     Public DlCleanroomListOfficialLoader As New LoaderTask(Of Integer, DlCleanroomListResult)("DlCleanroomList Official", AddressOf DlCleanroomListOfficialMain)
     Private Sub DlCleanroomListOfficialMain(Loader As LoaderTask(Of Integer, DlCleanroomListResult))
-        '获取版本列表 JSON
-        Dim ResultLatest As String = Nothing
-        Try
-            Dim ResultLatest As String = NetGetCodeByRequestRetry("https://api.github.com/repos/CleanroomMC/Cleanroom/releases", UseBrowserUserAgent:=True)
-        Catch ex As Exception
-        End Try
+    '获取版本列表 JSON
+        Dim ResultLatest As String = NetGetCodeByRequestRetry("https://api.github.com/repos/CleanroomMC/Cleanroom/releases", UseBrowserUserAgent:=True)
         If ResultLatest.Length < 100 Then Throw New Exception("获取到的版本列表长度不足（" & ResultLatest & "）")
-            '解析
-            Try
+        '解析
+        Try
             Loader.Output = New DlCleanroomListResult With {.IsOfficial = True, .SourceName = "Cleanroom 官方源",
                 .Value = GetCleanroomEntries(ResultLatest)}
         Catch ex As Exception
             Throw New Exception("Cleanroom 官方源版本列表解析失败（" & ResultLatest & "）", ex)
         End Try
-    End Sub
+End Sub
 
     Private Function GetCleanroomEntries(LatestJson As String) As List(Of DlCleanroomListEntry)
         Dim Versions As New List(Of DlCleanroomListEntry)
