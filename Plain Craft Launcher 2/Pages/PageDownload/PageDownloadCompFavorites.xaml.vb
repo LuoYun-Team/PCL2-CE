@@ -1,5 +1,3 @@
-﻿Public Class PageDownloadCompFavorites
-
 #Region "加载器信息"
     '加载器信息
     Public Loader As New LoaderTask(Of List(Of String), List(Of CompProject))("CompProject Favorites", AddressOf CompFavoritesGet, AddressOf LoaderInput)
@@ -517,6 +515,10 @@
         }
         AddHandler NewItem.Click, Sub()
                                       Try
+                                          If (CurrentFavTarget.Favs.Count = 0) Then
+                                              Hint("分享了个寂寞啊！")
+                                              Exit Sub
+                                          End If
                                           ClipboardSet(CompFavorites.GetShareCode(CurrentFavTarget.Favs))
                                       Catch ex As Exception
                                           Log(ex, "[Favourites] 分享收藏时发生错误", LogLevel.Hint)

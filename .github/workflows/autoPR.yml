@@ -4,10 +4,20 @@ on:
   pull_request:
     types: [closed, reopened, labeled]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   pr_automation:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Auto close PR
         if: |
           github.event_name == 'pull_request' &&
@@ -17,40 +27,30 @@ jobs:
             github.event.label.name
           )
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT }}
-          PR_NUMBER: ${{ github.event.number }}
+          GH_TOKEN: ${{ secrets.BOT }}
         run: |
-          curl -s -X PATCH \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
-            -d '{"state":"closed"}'
+          export GH_TOKEN
+          gh pr close ${{ github.event.number }}
 
       - name: Cleanup merged PR
         if: github.event.action == 'closed' && github.event.pull_request.merged
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT }}
+          GH_TOKEN: ${{ secrets.BOT }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          export GH_TOKEN
           printf '%s\n' '⭕ 等待处理' '🚧 正在处理' '🕑 等待合并' '🕑 等待前置' | while read -r label; do
-            curl -s -X DELETE \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels/$(jq -Rr @uri <<<"$label")" || true
+            gh issue edit $PR_NUMBER --remove-label "$label" || true
           done
-          curl -s -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels" \
-            -d '["👌 完成"]'
+          gh issue edit $PR_NUMBER --add-label "👌 完成"
 
       - name: Cleanup reopened PR
         if: github.event.action == 'reopened'
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT }}
+          GH_TOKEN: ${{ secrets.BOT }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          export GH_TOKEN
           printf '%s\n' '❌ 忽略' '❌ 拒绝 / 放弃' '❌ 暂无计划' '❌ 第三方' '❌ 重复' | while read -r label; do
-            curl -s -X DELETE \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels/$(jq -Rr @uri <<<"$label")" || true
+            gh issue edit $PR_NUMBER --remove-label "$label" || true
           done

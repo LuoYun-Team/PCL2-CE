@@ -1,4 +1,4 @@
-﻿<local:MyPageRight
+<local:MyPageRight
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:PCL" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -218,7 +218,7 @@
                             <local:MyCheckBox.Tag>
                                 <local:ExportOption 
                                 Title="PCL 启动器程序"
-                                Description="打包正式版 PCL，以便没有启动器的玩家安装整合包"
+                                Description="打包社区版 PCL，以便没有启动器的玩家安装整合包"
                                 DefaultChecked="True" />
                             </local:MyCheckBox.Tag>
                         </local:MyCheckBox>
