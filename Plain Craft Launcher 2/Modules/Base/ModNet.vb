@@ -26,7 +26,7 @@
                 '视作非本地地址
             Catch
             End Try
-            Return _Proxy
+            Return SystemProxy
         End If
         Log("[Net] 当前代理状态：禁用")
         Return Nothing
