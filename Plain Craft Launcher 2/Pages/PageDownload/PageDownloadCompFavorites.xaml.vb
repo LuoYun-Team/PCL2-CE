@@ -17,7 +17,7 @@
     End Sub
 
     Private Function LoaderInput() As List(Of String)
-        Dim TargetList As List(Of String)
+        Dim TargetList As List(Of String) = Nothing
         Try
             TargetList = CurrentFavTarget.Favs.Distinct().ToList()
         Catch ex As Exception
@@ -101,6 +101,8 @@
                     NewItem.Title = "资源包 ({0})"
                 Case CompType.Shader
                     NewItem.Title = "光影包 ({0})"
+                Case CompType.DataPack
+                    NewItem.Title = "数据包 ({0})"
                 Case Else
                     NewItem.Title = "未分类类型 ({0})"
             End Select
@@ -236,7 +238,7 @@
         If TypeOf (CompItem.Tag) Is CompProject Then
             AddHandler CompItem.MouseRightButtonUp, Sub(sender As Object, e As EventArgs)
                                                         FrmMain.PageChange(New FormMain.PageStackData With {.Page = FormMain.PageType.CompDetail,
-           .Additional = {CompItem.Tag, New List(Of String), String.Empty, CompLoaderType.Any}})
+           .Additional = {CompItem.Tag, New List(Of String), String.Empty, CompLoaderType.Any, CType(CompItem.Tag, CompProject).Type}})
                                                     End Sub
         End If
         '---其它事件---
@@ -517,6 +519,10 @@
         }
         AddHandler NewItem.Click, Sub()
                                       Try
+                                          If (CurrentFavTarget.Favs.Count = 0) Then
+                                              Hint("分享了个寂寞啊！")
+                                              Exit Sub
+                                          End If
                                           ClipboardSet(CompFavorites.GetShareCode(CurrentFavTarget.Favs))
                                       Catch ex As Exception
                                           Log(ex, "[Favourites] 分享收藏时发生错误", LogLevel.Hint)

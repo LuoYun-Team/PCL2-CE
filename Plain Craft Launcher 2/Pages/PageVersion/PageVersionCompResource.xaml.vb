@@ -36,7 +36,7 @@
                 RequireLoaders = {CompLoaderType.OptiFine, CompLoaderType.Iris, CompLoaderType.Vanilla, CompLoaderType.Canvas}.ToList()
         End Select
         res.Loaders = RequireLoaders
-        res.CompPath = PageVersionLeft.Version.PathIndie & GetPathNameByCompType(CurrentCompType) & "\"
+        res.CompPath = PageVersionLeft.Version.PathIndie & If(PageVersionLeft.Version.Version.HasLabyMod, "labymod-neo\fabric\" & PageVersionLeft.Version.Version.McName & "\", "") & GetPathNameByCompType(CurrentCompType) & "\"
         Return res
     End Function
 
@@ -112,7 +112,7 @@
         End If
     End Sub
     Public Function LoaderRun(Type As LoaderFolderRunType) As Boolean
-        Dim CompResourcePath As String = PageVersionLeft.Version.PathIndie & GetPathNameByCompType(CurrentCompType) & "\"
+        Dim CompResourcePath As String = PageVersionLeft.Version.PathIndie & If(PageVersionLeft.Version.Version.HasLabyMod, "labymod-neo\fabric\" & PageVersionLeft.Version.Version.McName & "\", "") & GetPathNameByCompType(CurrentCompType) & "\"
         Return LoaderFolderRun(CompResourceListLoader, CompResourcePath, Type, LoaderInput:=GetRequireLoaderData())
     End Function
 
@@ -349,7 +349,7 @@
     ''' </summary>
     Private Sub BtnManageOpen_Click(sender As Object, e As EventArgs) Handles BtnManageOpen.Click, BtnHintOpen.Click
         Try
-            Dim CompFilePath = PageVersionLeft.Version.PathIndie & GetPathNameByCompType(CurrentCompType) & "\"
+            Dim CompFilePath = PageVersionLeft.Version.PathIndie & If(PageVersionLeft.Version.Version.HasLabyMod, "labymod-neo\fabric\" & PageVersionLeft.Version.Version.McName & "\", "") & GetPathNameByCompType(CurrentCompType) & "\"
             Directory.CreateDirectory(CompFilePath)
             OpenExplorer(CompFilePath)
         Catch ex As Exception
@@ -425,7 +425,7 @@ Install:
                 For Each ModFile In FilePathList
                     Dim NewFileName = GetFileNameFromPath(ModFile).Replace(".disabled", "").Replace(".old", "")
                     If Not NewFileName.Contains(".") Then NewFileName += ".jar" '#4227
-                    CopyFile(ModFile, TargetVersion.PathIndie & "mods\" & NewFileName)
+                    CopyFile(ModFile, TargetVersion.PathIndie & If(PageVersionLeft.Version.Version.HasLabyMod, "labymod-neo\fabric\" & PageVersionLeft.Version.Version.McName & "\", "") & "mods\" & NewFileName)
                 Next
                 If FilePathList.Count = 1 Then
                     Hint($"已安装 {GetFileNameFromPath(FilePathList.First).Replace(".disabled", "").Replace(".old", "")}！", HintType.Finish)
@@ -434,7 +434,7 @@ Install:
                 End If
                 '刷新列表
                 If FrmMain.PageCurrent = FormMain.PageType.VersionSetup AndAlso FrmMain.PageCurrentSub = FormMain.PageSubType.VersionMod Then
-                    LoaderFolderRun(CompResourceListLoader, TargetVersion.PathIndie & "mods\", LoaderFolderRunType.ForceRun, LoaderInput:=FrmVersionMod?.GetRequireLoaderData())
+                    LoaderFolderRun(CompResourceListLoader, TargetVersion.PathIndie & If(PageVersionLeft.Version.Version.HasLabyMod, "labymod-neo\fabric\" & PageVersionLeft.Version.Version.McName & "\", "") & "mods\", LoaderFolderRunType.ForceRun, LoaderInput:=FrmVersionMod?.GetRequireLoaderData())
                 End If
             Catch ex As Exception
                 Log(ex, "复制 Mod 文件失败", LogLevel.Msgbox)
@@ -444,8 +444,8 @@ Install:
     End Function
 
     Private Sub BtnManageInfoExport_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnManageInfoExport.Click
-        Dim Choice = MyMsgBox("TXT 格式：仅导出当前的模组文件名称信息，通常足够他人获取已安装的模组信息" & vbCrLf &
-                              "CSV 格式：导出详细的模组信息，包括其文件名，Mod ID，文件内版本信息等详细信息",
+        Dim Choice = MyMsgBox("TXT 格式：仅导出当前的资源文件名称信息，通常足够他人获取已安装的资源信息" & vbCrLf &
+                              "CSV 格式：导出详细的资源信息，包括其文件名，工程的 ID，文件内版本信息等详细信息",
                                 Title:="选择导出模式",
                                 Button1:="TXT 格式",
                                 Button2:="CSV 格式",
@@ -457,7 +457,7 @@ Install:
                                  File.WriteAllText(savePath, Content, Encoding.UTF8)
                                  OpenExplorer(savePath)
                              Catch ex As Exception
-                                 Log(ex, "导出模组信息失败", LogLevel.Msgbox)
+                                 Log(ex, "导出资源信息失败", LogLevel.Msgbox)
                              End Try
                          End Sub
         Select Case Choice
@@ -466,15 +466,15 @@ Install:
                 For Each ModEntity In CompResourceListLoader.Output
                     ExportContent.Add(ModEntity.FileName)
                 Next
-                ExportText(Join(ExportContent, vbCrLf), PageVersionLeft.Version.Name & "已安装的模组信息.txt")
+                ExportText(Join(ExportContent, vbCrLf), PageVersionLeft.Version.Name & "已安装的资源信息.txt")
 
             Case 2 'CSV
                 Dim ExportContent As New List(Of String)
-                ExportContent.Add("文件名,Mod 名称,Mod 版本,此版本更新时间,Mod ID,Mod 平台工程 ID,Mod 文件大小（字节）,Mod 文件路径")
+                ExportContent.Add("文件名,资源名称,资源版本,此版本更新时间,Mod ID,对应平台工程 ID,文件大小（字节）,文件路径")
                 For Each ModEntity In CompResourceListLoader.Output
                     ExportContent.Add($"{ModEntity.FileName},{ModEntity.Comp?.TranslatedName},{ModEntity.Version},{ModEntity.CompFile?.ReleaseDate},{ModEntity.ModId},{ModEntity.Comp?.Id},{New FileInfo(ModEntity.Path).Length},{ModEntity.Path}")
                 Next
-                ExportText(Join(ExportContent, vbCrLf), PageVersionLeft.Version.Name & "已安装的模组信息.csv")
+                ExportText(Join(ExportContent, vbCrLf), PageVersionLeft.Version.Name & "已安装的资源信息.csv")
 
         End Select
     End Sub
@@ -483,19 +483,22 @@ Install:
     ''' 下载 Mod。
     ''' </summary>
     Private Sub BtnManageDownload_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnManageDownload.Click, BtnHintDownload.Click
-        PageDownloadMod.TargetVersion = PageVersionLeft.Version '将当前版本设置为筛选器
+        PageComp.TargetVersion = PageVersionLeft.Version '将当前版本设置为筛选器
         Select Case CurrentCompType
             Case CompType.Mod : FrmMain.PageChange(FormMain.PageType.Download, FormMain.PageSubType.DownloadMod)
             Case CompType.ResourcePack : FrmMain.PageChange(FormMain.PageType.Download, FormMain.PageSubType.DownloadResourcePack)
             Case CompType.Shader : FrmMain.PageChange(FormMain.PageType.Download, FormMain.PageSubType.DownloadShader)
         End Select
+        PageComp.TargetVersion = Nothing
     End Sub
 
 #End Region
 
 #Region "选择"
 
-    '选择的 Mod 的路径（不含 .disabled 和 .old）
+    ''' <summary>
+    ''' 选择的 Mod 的路径（不含 .disabled 和 .old）。
+    ''' </summary>
     Public SelectedMods As New List(Of String)
 
     '单项切换选择状态
@@ -539,7 +542,7 @@ Install:
 #Region "筛选"
 
     Private _Filter As FilterType = FilterType.All
-    Private Property Filter As FilterType
+    Public Property Filter As FilterType
         Get
             Return _Filter
         End Get
@@ -563,7 +566,7 @@ Install:
             RefreshUI()
         End Set
     End Property
-    Private Enum FilterType As Integer
+    Public Enum FilterType As Integer
         All = 0
         Enabled = 1
         Disabled = 2
@@ -652,31 +655,28 @@ Install:
     Private ReadOnly SortLock As New Object
     Private Sub DoSort()
         SyncLock SortLock
-            If PanList Is Nothing OrElse PanList.Children.Count < 2 Then Exit Sub
+            Try
+                If PanList Is Nothing OrElse PanList.Children.Count < 2 Then Exit Sub
 
-            ' 将子元素转换为可排序的列表
-            Dim items = PanList.Children.OfType(Of MyLocalCompItem)().ToList()
-            Dim Method = GetSortMethod(CurrentSortMethod)
+                ' 将子元素转换为可排序的列表
+                Dim items = PanList.Children.OfType(Of MyLocalCompItem)().ToList()
+                Dim Method = GetSortMethod(CurrentSortMethod)
 
-            ' 根据排序类型处理特殊逻辑
-            If CurrentSortMethod = SortMethod.TagNums Then
                 ' 分离有效和无效项（保持原始相对顺序）
-                Dim valid = items.Where(Function(i) i.Entry.Comp IsNot Nothing).ToList()
-                Dim invalid = items.Except(valid).ToList()
-
+                Dim invalid = items.Where(Function(i) i.Entry Is Nothing OrElse (CurrentSortMethod = SortMethod.TagNums AndAlso i.Entry.Comp Is Nothing)).ToList()
+                Dim valid = items.Except(invalid).ToList()
                 ' 仅对有效项进行排序
                 valid.Sort(Function(x, y) Method(y.Entry, x.Entry))
-
                 ' 合并保持无效项的原始顺序
                 items = valid.Concat(invalid).ToList()
-            Else
-                ' 直接进行高效排序
-                items.Sort(Function(x, y) Method(y.Entry, x.Entry))
-            End If
 
-            ' 批量更新UI元素
-            PanList.Children.Clear()
-            items.ForEach(Sub(i) PanList.Children.Add(i))
+                ' 批量更新UI元素
+                PanList.Children.Clear()
+                items.ForEach(Sub(i) PanList.Children.Add(i))
+
+            Catch ex As Exception
+                Log(ex, "执行排序时出错", LogLevel.Hint)
+            End Try
         End SyncLock
     End Sub
 
@@ -877,7 +877,7 @@ Install:
             End Sub))
             '结束处理
             Dim Loader As New LoaderCombo(Of IEnumerable(Of LocalCompFile))("资源更新：" & PageVersionLeft.Version.Name, InstallLoaders)
-            Dim PathMods As String = PageVersionLeft.Version.PathIndie & GetPathNameByCompType(CurrentCompType) & "\"
+            Dim PathMods As String = PageVersionLeft.Version.PathIndie & If(PageVersionLeft.Version.Version.HasLabyMod, "labymod-neo\fabric\" & PageVersionLeft.Version.Version.McName & "\", "") & GetPathNameByCompType(CurrentCompType) & "\"
             Loader.OnStateChanged =
             Sub()
                 '结果提示
@@ -953,11 +953,11 @@ Install:
                         My.Computer.FileSystem.DeleteFile(ModEntity.Path, FileIO.UIOption.OnlyErrorDialogs, FileIO.RecycleOption.SendToRecycleBin)
                     End If
                 Catch ex As OperationCanceledException
-                    Log(ex, "删除 Mod 被主动取消")
+                    Log(ex, "删除资源被主动取消")
                     ReloadCompFileList(True)
                     Return
                 Catch ex As Exception
-                    Log(ex, $"删除 Mod 失败（{ModEntity.Path}）", LogLevel.Msgbox)
+                    Log(ex, $"删除资源失败（{ModEntity.Path}）", LogLevel.Msgbox)
                     IsSuccessful = False
                 End Try
                 '取消选中
@@ -994,10 +994,10 @@ Install:
                 End If
             End If
         Catch ex As OperationCanceledException
-            Log(ex, "删除 Mod 被主动取消")
+            Log(ex, "删除资源被主动取消")
             ReloadCompFileList(True)
         Catch ex As Exception
-            Log(ex, "删除 Mod 出现未知错误", LogLevel.Feedback)
+            Log(ex, "删除资源出现未知错误", LogLevel.Feedback)
             ReloadCompFileList(True)
         End Try
         LoaderRun(LoaderFolderRunType.UpdateOnly)
@@ -1008,6 +1008,13 @@ Install:
         ChangeAllSelected(False)
     End Sub
 
+    '收藏
+    Private Sub BtnSelectFavorites_Click(sender As Object, e As RouteEventArgs) Handles BtnSelectFavorites.Click
+        Dim Selected As List(Of CompProject) = CompResourceListLoader.Output.Where(Function(m) SelectedMods.Contains(m.RawFileName) AndAlso m.Comp IsNot Nothing).Select(Function(i) i.Comp).ToList
+        CompFavorites.ShowMenu(Selected, sender)
+    End Sub
+
+    '分享
     Private Sub BtnSelectShare_Click() Handles BtnSelectShare.Click
         Dim ShareList As List(Of String) = CompResourceListLoader.Output.Where(Function(m) SelectedMods.Contains(m.RawFileName) AndAlso m.Comp IsNot Nothing).Select(Function(i) i.Comp.Id).ToList()
         ClipboardSet(CompFavorites.GetShareCode(ShareList))
@@ -1023,9 +1030,11 @@ Install:
         Try
 
             Dim ModEntry As LocalCompFile = CType(If(TypeOf sender Is MyIconButton, sender.Tag, sender), MyLocalCompItem).Entry
+            '判断该 LabyMod 是否支持安装 Fabric Mod
+            Dim ModdedLabyMod = PageVersionLeft.Version.Version.HasLabyMod AndAlso PageVersionLeft.Version.Modable
             '加载失败信息
             If ModEntry.State = LocalCompFile.LocalFileStatus.Unavailable Then
-                MyMsgBox("无法读取此 Mod 的信息。" & vbCrLf & vbCrLf & "详细的错误信息：" & GetExceptionDetail(ModEntry.FileUnavailableReason), "Mod 读取失败")
+                MyMsgBox("无法读取此资源的信息。" & vbCrLf & vbCrLf & "详细的错误信息：" & GetExceptionDetail(ModEntry.FileUnavailableReason), "资源读取失败")
                 Return
             End If
             If ModEntry.Comp IsNot Nothing Then
@@ -1034,7 +1043,7 @@ Install:
                     .Additional = {ModEntry.Comp, New List(Of String), PageVersionLeft.Version.Version.McName,
                         If(PageVersionLeft.Version.Version.HasForge, CompLoaderType.Forge,
                         If(PageVersionLeft.Version.Version.HasNeoForge, CompLoaderType.NeoForge,
-                        If(PageVersionLeft.Version.Version.HasFabric, CompLoaderType.Fabric, CompLoaderType.Any)))}})
+                        If(PageVersionLeft.Version.Version.HasFabric OrElse ModdedLabyMod, CompLoaderType.Fabric, CompLoaderType.Any)))}})
             Else
                 '获取信息
                 Dim ContentLines As New List(Of String)
@@ -1084,7 +1093,7 @@ Install:
                 End If
             End If
         Catch ex As Exception
-            Log(ex, "获取 Mod 详情失败", LogLevel.Feedback)
+            Log(ex, "获取资源详情失败", LogLevel.Feedback)
         End Try
     End Sub
     '打开文件所在的位置
@@ -1093,7 +1102,7 @@ Install:
             Dim ListItem As MyLocalCompItem = sender.Tag
             OpenExplorer(ListItem.Entry.Path)
         Catch ex As Exception
-            Log(ex, "打开 Mod 文件位置失败", LogLevel.Feedback)
+            Log(ex, "打开资源文件位置失败", LogLevel.Feedback)
         End Try
     End Sub
     '删除

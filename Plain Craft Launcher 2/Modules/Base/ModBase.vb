@@ -1,38 +1,36 @@
 Imports System.Globalization
 Imports System.IO.Compression
 Imports System.Runtime.CompilerServices
+Imports System.Runtime.InteropServices
 Imports System.Security.Cryptography
 Imports System.Security.Principal
 Imports System.Text.RegularExpressions
+Imports System.Xaml
 Imports System.Threading.Tasks
-Imports System.Windows.Markup
 Imports Newtonsoft.Json
+Imports Newtonsoft.Json.Serialization
 
 Public Module ModBase
 
 #Region "声明"
 
     '下列版本信息由更新器自动修改
-    Public Const VersionBaseName As String = "2.10.5" '不含分支前缀的显示用版本名
-    Public Const VersionStandardCode As String = "2.10.5." & VersionCodeString '标准格式的四段式版本号
+    Public Const VersionBaseName As String = "2.11.0" '不含分支前缀的显示用版本名
+    Public Const VersionStandardCode As String = "2.11.0." & VersionBranchCode '标准格式的四段式版本号
     Public Const CommitHash As String = "native" 'Commit Hash，由 GitHub Workflow 自动替换
     Public CommitHashShort As String = If(CommitHash = "native", "native", CommitHash.Substring(0, 7)) 'Commit Hash，取前 7 位
-    Public Const UpstreamVersion As String = "2.9.2" '上游版本
-    Public Const VersionCode As Integer = 365 '内部版本号
-    Public Const VersionCodeString As String = "365" '内部版本号的字符串形式
+    Public Const UpstreamVersion As String = "2.10.0" '上游版本
+    Public Const VersionCode As Integer = 368 '内部版本号
     '自动生成的版本信息
 #If RELEASE Then
     Public Const VersionBranchName As String = "Slow Ring"
     Public Const VersionBranchCode As String = "0"
-    Public Const VersionDisplayName As String = VersionBranchName & " " & VersionBaseName
 #ElseIf BETA Then
     Public Const VersionBranchName As String = "Fast Ring"
     Public Const VersionBranchCode As String = "50"
-    Public Const VersionDisplayName As String = VersionBranchName & " " & VersionBaseName & "." & VersionCodeString
 #Else
     Public Const VersionBranchName As String = "Debug"
     Public Const VersionBranchCode As String = "100"
-    Public Const VersionDisplayName As String = VersionBranchName & " " & VersionBaseName & "." & VersionCodeString
 #End If
 
     ''' <summary>
@@ -99,6 +97,10 @@ Public Module ModBase
     ''' AppData 中的 PCL 文件夹路径，以 \ 结尾。
     ''' </summary>
     Public PathAppdata As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) & "\PCL\"
+    ''' <summary>
+    ''' AppData 中的 PCLCE 配置文件夹路径，以 \ 结尾。
+    ''' </summary>
+    Public PathAppdataConfig As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) & If(VersionBranchName = "Debug", "\.pclcedebug\", "\.pclce\")
 
 #End Region
 
@@ -793,7 +795,6 @@ Public Module ModBase
             Dim IsRight As Boolean = FilePath.EndsWithF("\")
             FilePath = Left(FilePath, Len(FilePath) - 1)
             GetPathFromFullPath = Left(FilePath, FilePath.LastIndexOfAny({"\", "/"})) & If(IsRight, "\", "/")
-            If GetPathFromFullPath = "" Then Throw New Exception("不包含路径：" & FilePath)
         Else
             '是文件路径
             GetPathFromFullPath = Left(FilePath, FilePath.LastIndexOfAny({"\", "/"}) + 1)
@@ -1301,23 +1302,42 @@ Re:
                 Dim Info As New FileInfo(LocalPath)
                 If Not Info.Exists Then Return "文件不存在：" & LocalPath
                 Dim FileSize As Long = Info.Length
-                If ActualSize >= 0 AndAlso ActualSize <> FileSize Then
-                    Return $"文件大小应为 {ActualSize} B，实际为 {FileSize} B" &
-                        If(FileSize < 2000, "，内容为：" & ReadFile(LocalPath), "")
-                End If
-                If MinSize >= 0 AndAlso MinSize > FileSize Then
-                    Return $"文件大小应大于 {MinSize} B，实际为 {FileSize} B" &
-                        If(FileSize < 2000, "，内容为：" & ReadFile(LocalPath), "")
-                End If
+                Dim ErrorMessage = ""
+                Dim Passed As Integer = 0
                 If Not String.IsNullOrEmpty(Hash) Then
+                    Passed += 1
                     If Hash.Length < 35 Then 'MD5
-                        If Hash.ToLowerInvariant <> GetFileMD5(LocalPath) Then Return "文件 MD5 应为 " & Hash & "，实际为 " & GetFileMD5(LocalPath)
+                        If Hash.ToLowerInvariant <> GetFileMD5(LocalPath) Then
+                            ErrorMessage += "文件 MD5 应为 " & Hash & "，实际为 " & GetFileMD5(LocalPath) & vbCrLf
+                            Passed -= 1
+                        End If
                     ElseIf Hash.Length = 64 Then 'SHA256
-                        If Hash.ToLowerInvariant <> GetFileSHA256(LocalPath) Then Return "文件 SHA256 应为 " & Hash & "，实际为 " & GetFileSHA256(LocalPath)
+                        If Hash.ToLowerInvariant <> GetFileSHA256(LocalPath) Then
+                            ErrorMessage += "文件 SHA256 应为 " & Hash & "，实际为 " & GetFileSHA256(LocalPath) & vbCrLf
+                            Passed -= 1
+                        End If
                     Else 'SHA1 (40)
-                        If Hash.ToLowerInvariant <> GetFileSHA1(LocalPath) Then Return "文件 SHA1 应为 " & Hash & "，实际为 " & GetFileSHA1(LocalPath)
+                        If Hash.ToLowerInvariant <> GetFileSHA1(LocalPath) Then
+                            ErrorMessage += "文件 SHA1 应为 " & Hash & "，实际为 " & GetFileSHA1(LocalPath) & vbCrLf
+                            Passed -= 1
+                        End If
                     End If
                 End If
+
+                If ActualSize >= 0 AndAlso ActualSize <> FileSize Then
+                    ErrorMessage += $"文件大小应为 {ActualSize} B，实际为 {FileSize} B" &
+                        If(FileSize < 2000, "，内容为：" & ReadFile(LocalPath), "") & vbCrLf
+                Else
+                    Passed += 1
+                End If
+
+                If MinSize >= 0 AndAlso MinSize > FileSize Then
+                    ErrorMessage += $"文件大小应大于 {MinSize} B，实际为 {FileSize} B" &
+                        If(FileSize < 2000, "，内容为：" & ReadFile(LocalPath), "") & vbCrLf
+                Else
+                    Passed += 1
+                End If
+
                 If IsJson Then
                     Dim Content As String = ReadFile(LocalPath)
                     If Content = "" Then Throw New Exception("读取到的文件为空")
@@ -1327,6 +1347,7 @@ Re:
                         Throw New Exception("不是有效的 Json 文件", ex)
                     End Try
                 End If
+                If Passed = 0 Then Return ErrorMessage
                 Return Nothing
             Catch ex As Exception
                 Log(ex, "检查文件出错")
@@ -1458,8 +1479,33 @@ RetryDir:
         GetShortPathName(LongPath, ShortPath, 260)
         Return ShortPath.ToString
     End Function
+
+    Public Sub MoveDirectory(SourceDir As String, TargetDir As String)
+        If Not Directory.Exists(TargetDir) Then Directory.CreateDirectory(TargetDir)
+        For Each FilePath In Directory.GetFiles(SourceDir)
+            Dim FileName = GetFileNameFromPath(FilePath)
+            File.Move(FilePath, IO.Path.Combine(TargetDir, FileName))
+        Next
+        For Each DirPath In Directory.GetDirectories(SourceDir)
+            Dim DirName = GetFolderNameFromPath(DirPath)
+            MoveDirectory(DirPath, IO.Path.Combine(TargetDir, DirName))
+        Next
+    End Sub
     Private Declare Function GetShortPathName Lib "kernel32" Alias "GetShortPathNameA" (ByVal lpszLongPath As String, ByVal lpszShortPath As StringBuilder, ByVal cchBuffer As Integer) As Integer
 
+    Public Sub CreateSymbolicLink(ByVal LinkPath As String, ByVal TargetPath As String, ByVal Flags As Integer)
+        Dim CMDProcess As New Process
+        Dim LinkDPath = ExtractLinkD()
+        With CMDProcess.StartInfo
+            .FileName = LinkDPath
+            .Arguments = $"""{LinkPath}"" ""{TargetPath}"""
+            .CreateNoWindow = True
+            .UseShellExecute = False
+        End With
+        CMDProcess.Start()
+        While Not CMDProcess.HasExited
+        End While
+    End Sub
 #End Region
 
 #Region "文本"
@@ -1750,6 +1796,7 @@ RetryDir:
     End Function
     ''' <summary>
     ''' 获取处于两个子字符串之间的部分，裁切尽可能多的内容。
+    ''' 等效于 AfterLast 后接 BeforeFirst。
     ''' 如果未找到子字符串则不裁切。
     ''' </summary>
     <Extension> Public Function Between(Str As String, After As String, Before As String, Optional IgnoreCase As Boolean = False) As String
@@ -2384,13 +2431,17 @@ NextElement:
     ''' <param name="FileName">文件名。可以为“notepad”等缩写。</param>
     ''' <param name="Arguments">运行参数。</param>
     Public Sub ShellOnly(FileName As String, Optional Arguments As String = "")
-        FileName = ShortenPath(FileName)
-        Using Program As New Process
-            Program.StartInfo.Arguments = Arguments
-            Program.StartInfo.FileName = FileName
-            Log("[System] 执行外部命令：" & FileName & " " & Arguments)
-            Program.Start()
-        End Using
+        Try
+            FileName = ShortenPath(FileName)
+            Using Program As New Process
+                Program.StartInfo.Arguments = Arguments
+                Program.StartInfo.FileName = FileName
+                Log("[System] 执行外部命令：" & FileName & " " & Arguments)
+                Program.Start()
+            End Using
+        Catch ex As Exception
+            Log(ex, "打开文件或程序失败：" & FileName, LogLevel.Msgbox)
+        End Try
     End Sub
     ''' <summary>
     ''' 前台运行文件并返回返回值。
@@ -2928,13 +2979,27 @@ Retry:
     ''' <summary>
     ''' 将 XML 转换为对应 UI 对象。
     ''' </summary>
-    Public Function GetObjectFromXML(Str As String)
-        Using Stream As New MemoryStream
+    Public Function GetObjectFromXML(Str As String) As Object
+        Using Stream As New MemoryStream(Encoding.UTF8.GetBytes(Str))
+            '类型检查
+            Using Reader As New XamlXmlReader(Stream)
+                While Reader.Read()
+                    For Each BlackListType In {GetType(WebBrowser), GetType(Frame), GetType(MediaElement), GetType(ObjectDataProvider), GetType(XamlReader), GetType(Window), GetType(XmlDataProvider)}
+                        If Reader.Type IsNot Nothing AndAlso BlackListType.IsAssignableFrom(Reader.Type.UnderlyingType) Then Throw New UnauthorizedAccessException($"不允许使用 {BlackListType.Name} 类型。")
+                        If Reader.Value IsNot Nothing AndAlso Reader.Value = BlackListType.Name Then Throw New UnauthorizedAccessException($"不允许使用 {BlackListType.Name} 值。")
+                    Next
+                    For Each BlackListMember In {"Code", "FactoryMethod", "Static"}
+                        If Reader.Member IsNot Nothing AndAlso Reader.Member.Name = BlackListMember Then Throw New UnauthorizedAccessException($"不允许使用 {BlackListMember} 成员。")
+                    Next
+                End While
+            End Using
+            '实际的加载
+            Stream.Position = 0
             Using Writer As New StreamWriter(Stream)
                 Writer.Write(Str)
                 Writer.Flush()
                 Stream.Position = 0
-                Return XamlReader.Load(Stream)
+                Return Markup.XamlReader.Load(Stream)
             End Using
         End Using
     End Function
@@ -3231,8 +3296,8 @@ Retry:
         OpenWebsite("https://github.com/PCL-Community/PCL2-CE/issues/")
     End Sub
     Public Function CanFeedback(ShowHint As Boolean) As Boolean
-        Dim LatestVersion = GetCurrentUpdateChannelInfo()
-        If LatestVersion.code > VersionCode Then
+        Dim LatestVersion = GetChannelInfo()
+        If LatestVersion.version.code > VersionCode Then
             If ShowHint Then
                 If MyMsgBox($"你的 PCL 不是最新版，因此无法提交反馈。{vbCrLf}请在更新后，确认该问题在最新版中依然存在，然后再提交反馈。", "无法提交反馈", "更新", "取消") = 1 Then
                     UpdateCheckByButton()
