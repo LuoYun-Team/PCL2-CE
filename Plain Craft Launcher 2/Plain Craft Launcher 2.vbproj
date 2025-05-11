@@ -285,6 +285,8 @@
     <Compile Include="Modules\Minecraft\ModLocalComp.vb" />
     <Compile Include="Modules\Minecraft\ModModpack.vb" />
     <Compile Include="Modules\Minecraft\ModProfile.vb" />
+    <Compile Include="Modules\Minecraft\ModStyle.vb" />
+    <Compile Include="Pages\PageLaunch\PageLoginOffline.xaml.vb" />
     <Compile Include="Pages\PageVersion\MyLocalModItem.xaml.vb">
       <DependentUpon>MyLocalModItem.xaml</DependentUpon>
     </Compile>
@@ -319,9 +321,6 @@
     <Compile Include="Modules\ModDevelop.vb" />
     <Compile Include="Modules\Minecraft\ModWatcher.vb" />
     <Compile Include="Modules\ModSecret.vb" />
-    <Compile Include="Modules\Reference\CookieWebClient.vb">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="Pages\PageDownload\Comp\PageComp.xaml.vb">
       <DependentUpon>PageComp.xaml</DependentUpon>
     </Compile>
@@ -676,6 +675,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Pages\PageLaunch\PageLoginOffline.xaml" />
     <Page Include="Pages\PageLaunch\PageLoginProfileSkin.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -1125,7 +1125,7 @@
       <Version>10.0.19041.2</Version>
     </PackageReference>
     <PackageReference Include="IPNetwork2">
-      <Version>3.1.764</Version>
+      <Version>2.6.618</Version>
     </PackageReference>
     <PackageReference Include="Makaretu.Nat">
       <Version>0.2.0</Version>

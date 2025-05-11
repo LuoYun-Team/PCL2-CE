@@ -234,39 +234,40 @@ Public Module ModProfile
         ElseIf SelectedAuthTypeNum = 2 Then '第三方验证
             RunInUi(Sub() FrmLaunchLeft.RefreshPage(True, McLoginType.Auth))
         Else '离线验证
-            Dim UserName As String = Nothing '玩家 ID
-            Dim UserUuid As String = Nothing 'UUID
-            RunInUiWait(Sub() UserName = MyMsgBoxInput("新建档案 - 输入档案名称", HintText:="3 - 16 位，只可以使用英文字母、数字与下划线",
-                                                       ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(3, 16), New ValidateRegex("([A-z]|[0-9]|_)+")},
-                                                       Button1:="继续", Button2:="取消"))
-            If UserName = Nothing Then Exit Sub
-            Dim UuidType As Integer = Nothing
-            RunInUiWait(Sub()
-                            Dim UuidTypeList As New List(Of IMyRadio) From {
-                                New MyRadioBox With {.Text = "行业规范 UUID（推荐）"},
-                                New MyRadioBox With {.Text = "官方版 PCL UUID（若单人存档的部分信息丢失，可尝试此项）"},
-                                New MyRadioBox With {.Text = "自定义"}
-                            }
-                            UuidType = MyMsgBoxSelect(UuidTypeList, "新建档案 - 选择 UUID 类型", "继续")
-                        End Sub)
-            If UuidType = 0 Then
-                UserUuid = GetOfflineUuid(UserName, False)
-            ElseIf UuidType = 1 Then
-                UserUuid = GetOfflineUuid(UserName, IsLegacy:=True)
-            Else
-                UserUuid = MyMsgBoxInput("新建档案 - 输入 UUID", HintText:="32 位，不含连字符",
-                                         ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(32, 32), New ValidateRegex("([A-z]|[0-9]){32}", "UUID 只应该包括英文字母和数字！")},
-                                         Button1:="继续", Button2:="取消")
-            End If
-            If UserUuid = Nothing Then Exit Sub
-            Dim NewProfile = New McProfile With {
-                .Type = McLoginType.Legacy,
-                .Uuid = UserUuid,
-                .Username = UserName,
-                .Desc = ""}
-            ProfileList.Add(NewProfile)
-            SaveProfile()
-            Hint("档案新建成功！", HintType.Finish)
+            RunInUi(Sub() FrmLaunchLeft.RefreshPage(True, McLoginType.Offline))
+            ' Dim UserName As String = Nothing '玩家 ID
+            ' Dim UserUuid As String = Nothing 'UUID
+            ' RunInUiWait(Sub() UserName = MyMsgBoxInput("新建档案 - 输入档案名称", HintText:="3 - 16 位，只可以使用英文字母、数字与下划线",
+            '                                            ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(3, 16), New ValidateRegex("([A-z]|[0-9]|_)+")},
+            '                                            Button1:="继续", Button2:="取消"))
+            ' If UserName = Nothing Then Exit Sub
+            ' Dim UuidType As Integer = Nothing
+            ' RunInUiWait(Sub()
+            '                 Dim UuidTypeList As New List(Of IMyRadio) From {
+            '                     New MyRadioBox With {.Text = "行业规范 UUID（推荐）"},
+            '                     New MyRadioBox With {.Text = "官方版 PCL UUID（若单人存档的部分信息丢失，可尝试此项）"},
+            '                     New MyRadioBox With {.Text = "自定义"}
+            '                 }
+            '                 UuidType = MyMsgBoxSelect(UuidTypeList, "新建档案 - 选择 UUID 类型", "继续")
+            '             End Sub)
+            ' If UuidType = 0 Then
+            '     UserUuid = GetOfflineUuid(UserName, False)
+            ' ElseIf UuidType = 1 Then
+            '     UserUuid = GetOfflineUuid(UserName, IsLegacy:=True)
+            ' Else
+            '     UserUuid = MyMsgBoxInput("新建档案 - 输入 UUID", HintText:="32 位，不含连字符",
+            '                              ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(32, 32), New ValidateRegex("([A-z]|[0-9]){32}", "UUID 只应该包括英文字母和数字！")},
+            '                              Button1:="继续", Button2:="取消")
+            ' End If
+            ' If UserUuid = Nothing Then Exit Sub
+            ' Dim NewProfile = New McProfile With {
+            '     .Type = McLoginType.Legacy,
+            '     .Uuid = UserUuid,
+            '     .Username = UserName,
+            '     .Desc = ""}
+            ' ProfileList.Add(NewProfile)
+            ' SaveProfile()
+            ' Hint("档案新建成功！", HintType.Finish)
         End If
     End Sub
     ''' <summary>
@@ -279,22 +280,27 @@ Public Module ModProfile
                                                           ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(3, 16), New ValidateRegex("([A-z]|[0-9]|_)+")},
                                                           HintText:="3 - 16 个字符，只可以包含大小写字母、数字、下划线", Button1:="确认", Button2:="取消"))
             If NewUsername = Nothing Then Exit Sub
-            Dim Result As String = NetRequestRetry($"https://api.minecraftservices.com/minecraft/profile/name/", "PUT", "", "application/json", 2, New Dictionary(Of String, String) From {{"Authorization", "Bearer " & SelectedProfile.AccessToken}})
-            Try
-                Dim ResultJson As JObject = GetJson(Result)
-                Hint($"玩家 ID 修改成功，当前 ID 为：{ResultJson("name")}", HintType.Finish)
-            Catch ex As WebException
-                Dim Message As String = GetExceptionSummary(ex)
-                If Message.Contains("(400)") Then
-                    MyMsgBox("玩家 ID 修改失败，因为不符合规范！", "ID 修改失败", "确认", IsWarn:=True)
-                ElseIf Message.Contains("(403)") Then
-                    If Message.Contains("DUPLICATE") Then
-                        MyMsgBox("玩家 ID 修改失败，因为该 ID 已被使用！", "ID 修改失败", "确认", IsWarn:=True)
-                    End If
-                Else
-                    Throw
-                End If
-            End Try
+            RunInNewThread(Sub()
+                               Try
+                                   Dim Result As String = NetRequestRetry($"https://api.minecraftservices.com/minecraft/profile/name/", "PUT", "", "application/json", 2, New Dictionary(Of String, String) From {{"Authorization", "Bearer " & SelectedProfile.AccessToken}})
+                                   Dim ResultJson As JObject = GetJson(Result)
+                                   Hint($"玩家 ID 修改成功，当前 ID 为：{ResultJson("name")}", HintType.Finish)
+                               Catch ex As WebException
+                                   Dim Message As String = GetExceptionSummary(ex)
+                                   If Message.Contains("(400)") Then
+                                       MyMsgBox("玩家 ID 修改失败，因为不符合规范！", "ID 修改失败", "确认", IsWarn:=True)
+                                   ElseIf Message.Contains("(403)") Then
+                                       If Message.Contains("DUPLICATE") Then
+                                           MyMsgBox("玩家 ID 修改失败，因为该 ID 已被使用！", "ID 修改失败", "确认", IsWarn:=True)
+                                       End If
+                                   Else
+                                       Throw
+                                   End If
+                               End Try
+                           End Sub
+                    )
+
+
         ElseIf SelectedProfile.Type = McLoginType.Auth Then
             Dim Server As String = SelectedProfile.Server
             OpenWebsite(Server.ToString.Replace("/api/yggdrasil/authserver" + If(Server.EndsWithF("/"), "/", ""), "/user/profile"))
@@ -375,7 +381,14 @@ Write:
                                Dim ImportNum As Integer = 0
                                For Each Profile In ImportList
                                    Dim NewProfile As McProfile = Nothing
+                                   Dim IsDuplicated As Boolean = False
                                    If Profile("type") = "microsoft" Then
+                                       For Each ExistProfile In ProfileList
+                                           If ExistProfile.Type = McLoginType.Ms AndAlso ExistProfile.Uuid = Profile("uuid") Then '不检查玩家 ID，因为可能改了名字还没刷新
+                                               IsDuplicated = True
+                                               Exit For
+                                           End If
+                                       Next
                                        NewProfile = New McProfile With {
                                                                .Type = McLoginType.Ms,
                                                                .Uuid = Profile("uuid"),
@@ -387,7 +400,7 @@ Write:
                                                                .RawJson = "",
                                                                .SkinHeadId = ""
                                                            }
-                                       OutputList.Add(NewProfile)
+                                       If Not IsDuplicated Then OutputList.Add(NewProfile)
                                    ElseIf Profile("type") = "authlibInjector" Then
                                        NewProfile = New McProfile With {
                                                                .Type = McLoginType.Auth,
@@ -692,7 +705,7 @@ Retry:
             Dim OldMsJson As JObject = GetJson(Setup.Get("LoginMsJson"))
             ProfileLog($"找到 {OldMsJson.Count} 个旧版正版档案信息")
             For Each Profile In OldMsJson
-                Dim NewProfile As New McProfile With {.Username = Profile.Key, .Type = McLoginType.Ms}
+                Dim NewProfile As New McProfile With {.Username = Profile.Key, .Uuid = McLoginMojangUuid(Profile.Key, False), .Type = McLoginType.Ms}
                 ProfileList.Add(NewProfile)
                 ProfileCount += 1
             Next

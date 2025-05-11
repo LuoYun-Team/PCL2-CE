@@ -1,13 +1,9 @@
 '由于包含加解密等安全信息，本文件中的部分代码已被删除
 
 Imports System.ComponentModel
-Imports System.Net
-Imports System.Reflection
-Imports System.Text
+Imports System.Net.Http
 Imports System.Security.Cryptography
-Imports NAudio.Midi
 Imports System.Management
-Imports System
 Imports System.IO.Compression
 
 Friend Module ModSecret
@@ -24,8 +20,10 @@ Friend Module ModSecret
     Public Const OAuthClientId As String = ""
     'CurseForge API Key
     Public Const CurseForgeAPIKey As String = ""
-    ' LittleSkin OAuth ClientId
+    'LittleSkin OAuth ClientId
     Public Const LittleSkinClientId As String = ""
+    '遥测鉴权密钥
+    Public Const TelemetryKey As String = ""
 
     Friend Sub SecretOnApplicationStart()
         '提升 UI 线程优先级
@@ -184,16 +182,19 @@ PCL-Community 及其成员与龙腾猫跃无从属关系，且均不会为您的
     ''' <summary>
     ''' 设置 Headers 的 UA、Referer。
     ''' </summary>
-    Friend Sub SecretHeadersSign(Url As String, ByRef Client As WebClient, Optional UseBrowserUserAgent As Boolean = False)
-        If Url.Contains("baidupcs.com") OrElse Url.Contains("baidu.com") Then
-            Client.Headers("User-Agent") = "LogStatistic" '#4951
-        ElseIf UseBrowserUserAgent Then
-            Client.Headers("User-Agent") = "PCL2/" & UpstreamVersion & "." & VersionBranchCode & " PCLCE/" & VersionStandardCode & " Mozilla/5.0 AppleWebKit/537.36 Chrome/63.0.3239.132 Safari/537.36"
-        Else
-            Client.Headers("User-Agent") = "PCL2/" & UpstreamVersion & "." & VersionBranchCode & " PCLCE/" & VersionStandardCode
-        End If
-        Client.Headers("Referer") = "http://" & VersionCode & ".ce.open.pcl2.server/"
-        If Url.Contains("api.curseforge.com") Then Client.Headers("x-api-key") = CurseForgeAPIKey
+    Friend Sub SecretHeadersSign(Url As String, ByRef Client As HttpRequestMessage, Optional UseBrowserUserAgent As Boolean = False)
+        If Url.Contains("api.curseforge.com") Then Client.Headers.Add("x-api-key", CurseForgeAPIKey)
+        Client.Headers.Add("User-Agent",
+        If(Url.Contains("baidupcs.com") OrElse Url.Contains("baidu.com"),
+                "LogStatistic",
+                If(UseBrowserUserAgent,
+                    $"PCL2/{UpstreamVersion}.{VersionBranchCode} PCLCE/{VersionStandardCode} Mozilla/5.0 AppleWebKit/537.36 Chrome/63.0.3239.132 Safari/537.36",
+                    $"PCL2/{UpstreamVersion}.{VersionBranchCode} PCLCE/{VersionStandardCode}"
+                )
+            ))
+
+        Client.Headers.Add("Referer", "http://" & VersionCode & ".ce.open.pcl2.server/")
+        If Url.Contains("pcl2ce.pysio.online/post") Then Client.Headers.Add("Authorization", TelemetryKey)
     End Sub
     ''' <summary>
     ''' 设置 Headers 的 UA、Referer。
@@ -208,6 +209,7 @@ PCL-Community 及其成员与龙腾猫跃无从属关系，且均不会为您的
         End If
         Request.Referer = "http://" & VersionCode & ".ce.open.pcl2.server/"
         If Url.Contains("api.curseforge.com") Then Request.Headers("x-api-key") = CurseForgeAPIKey
+        If Url.Contains("pcl2ce.pysio.online/post") Then Request.Headers("Authorization") = TelemetryKey
     End Sub
 
 #End Region
@@ -823,6 +825,108 @@ PCL-Community 及其成员与龙腾猫跃无从属关系，且均不会为您的
         End If
     End Sub
 
+#End Region
+
+#Region "遥测"
+    ''' <summary>
+    ''' 发送遥测数据，需要在非 UI 线程运行
+    ''' </summary>
+    Public Sub SendTelemetry()
+        Dim NetResult = ModLink.NetTest()
+        Dim Data = New JObject From {
+            {"Id", UniqueAddress},
+            {"OS", Environment.OSVersion.Version.Build},
+            {"Is64Bit", Not Is32BitSystem},
+            {"IsARM64", IsArm64System},
+            {"Launcher", VersionCode},
+            {"LauncherBranch", VersionBranchName},
+            {"UsedOfficialPCL", ReadReg("SystemEula", Nothing, "PCL") IsNot Nothing},
+            {"UsedHMCL", Directory.Exists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) & "\.hmcl")},
+            {"UsedBakaXL", Directory.Exists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) & "\BakaXL")},
+            {"Memory", SystemMemorySize},
+            {"NatType", NetResult(0)},
+            {"IPv6Status", NetResult(1)}
+        }
+        Dim SendData = New JObject From {
+            {"data", Data}
+        }
+        Try
+            Dim Result As String = NetRequestRetry("https://pcl2ce.pysio.online/post", "POST", SendData.ToString(), "application/json")
+            If Result.Contains("数据已成功保存") Then
+                Log("[Telemetry] 软硬件调查数据已发送")
+            Else
+                Log("[Telemetry] 软硬件调查数据发送失败，原始返回内容: " + Result)
+            End If
+        Catch ex As Exception
+            Log(ex, "[Telemetry] 软硬件调查数据发送失败", LogLevel.Normal)
+        End Try
+    End Sub
+#End Region
+
+#Region "系统信息"
+    Friend CPUName As String = Nothing
+    ''' <summary>
+    ''' 系统 GPU 信息
+    ''' </summary>
+    Friend GPUs As New List(Of GPUInfo)
+    ''' <summary>
+    ''' 已安装物理内存大小，单位 MB
+    ''' </summary>
+    Friend SystemMemorySize As Long = My.Computer.Info.TotalPhysicalMemory / 1024 / 1024
+    ''' <summary>
+    ''' 系统信息描述，例如 Microsoft Windows 11 专业工作站版 10.0.22635.0
+    ''' </summary>
+    Public OSInfo As String = My.Computer.Info.OSFullName & " " & My.Computer.Info.OSVersion
+    Class GPUInfo
+        Friend Name As String
+        ''' <summary>
+        ''' 显存大小，单位 MB
+        ''' </summary>
+        Friend Memory As Long
+        Friend DriverVersion As String
+    End Class
+    ''' <summary>
+    ''' 获取系统信息，例如 CPU 与 GPU，并存储到 CPUName 和 GPUs
+    ''' </summary>
+    Friend Sub GetSystemInfo()
+        'CPU
+        Try
+            Dim searcher As New ManagementObjectSearcher("root\CIMV2", "SELECT * FROM Win32_Processor")
+
+            For Each queryObj As ManagementObject In searcher.Get()
+                CPUName = queryObj("Name").ToString().Trim()
+                Exit For '通常只需要第一个CPU的信息
+            Next
+        Catch ex As Exception
+            Log(ex, "获取 CPU 信息时出错", LogLevel.Normal)
+        End Try
+
+        'GPU
+        Try
+            Dim searcher As New ManagementObjectSearcher("root\CIMV2", "SELECT * FROM Win32_VideoController")
+
+            For Each queryObj As ManagementObject In searcher.Get()
+                Dim gpuInfo As New GPUInfo
+
+                If queryObj("Name") IsNot Nothing Then
+                    gpuInfo.Name = queryObj("Name")
+                End If
+                If queryObj("AdapterRAM") IsNot Nothing Then
+                    Dim ramMB As Long = CLng(queryObj("AdapterRAM")) \ (1024 * 1024)
+                    gpuInfo.Memory = ramMB
+                End If
+                If queryObj("DriverVersion") IsNot Nothing Then
+                    gpuInfo.DriverVersion = queryObj("DriverVersion")
+                End If
+
+                GPUs.Add(gpuInfo)
+            Next
+
+            Log("已获取系统环境信息")
+        Catch ex As Exception
+            Log(ex, "获取 GPU 信息时出错", LogLevel.Normal)
+        End Try
+    End Sub
 #End Region
 
 End Module

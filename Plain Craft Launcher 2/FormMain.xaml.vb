@@ -421,6 +421,22 @@ Public Class FormMain
                         EndProgram(False)
                 End Select
             End If
+            '遥测提示
+            If Setup.Get("SystemTelemetry") = Nothing Then
+                Select Case MyMsgBox("这是一项与 Steam 硬件调查类似的计划，参与调查可以帮助我们更好的进行规划和开发，且我们会不定期发布该调查的统计结果。" & vbCrLf &
+                                     "如果选择参与调查，我们将会收集以下信息：" & vbCrLf &
+                                     "启动器版本信息与识别码，使用的 Windows 系统版本与架构，已安装的物理内存大小，NAT 与 IPv6 支持情况，是否使用过官方版 PCL、HMCL 或 BakaXL" & vbCrLf & vbCrLf &
+                                     "这些数据均不与你关联，我们也绝不会向第三方出售数据。" & vbCrLf &
+                                     "如果不想参与该调查，可以选择拒绝，不会影响其他功能使用。" & vbCrLf &
+                                     "你可以随时在启动器设置中调整这项设置。", "参与 PCL CE 软硬件调查", "同意", "拒绝")
+                    Case 1
+                        Setup.Set("SystemTelemetry", True)
+                    Case 2
+                        Setup.Set("SystemTelemetry", False)
+                End Select
+            ElseIf Setup.Get("SystemTelemetry") Then
+                RunInNewThread(Sub() SendTelemetry())
+            End If
             '启动加载器池
             Try
                 JavaListInit() '延后到同意协议后再执行，避免在初次启动时进行进程操作
@@ -438,6 +454,8 @@ Public Class FormMain
             Catch ex As Exception
                 Log(ex, "清理自动更新文件失败")
             End Try
+            GetCoR() '获取区域限制状态
+            GetSystemInfo()
         End Sub, "Start Loader", ThreadPriority.Lowest)
         '剪贴板识别
         If Setup.Get("ToolDownloadClipboard") Then RunInNewThread(Sub() CompClipboard.ClipboardListening(), "Clipboard Listener", ThreadPriority.Lowest)
@@ -667,7 +685,11 @@ Public Class FormMain
 
     '标题栏改变大小
     Private Sub PanTitle_SizeChanged() Handles PanTitleLeft.SizeChanged
-        PanTitleLeft.ColumnDefinitions(0).MaxWidth = PanTitleMain.ColumnDefinitions(0).ActualWidth - 30
+        If PanTitleMain.ColumnDefinitions(0).ActualWidth - 30 <= 0 Then
+            PanTitleLeft.ColumnDefinitions(0).MaxWidth = 0
+        Else
+            PanTitleLeft.ColumnDefinitions(0).MaxWidth = PanTitleMain.ColumnDefinitions(0).ActualWidth - 30
+        End If
     End Sub
 
     '最小化
@@ -797,9 +819,6 @@ Public Class FormMain
                         If PageCurrent = PageType.VersionSetup AndAlso PageCurrentSub = PageSubType.VersionSetup Then
                             '正在服务器选项页，需要刷新设置项显示
                             FrmVersionSetup.Reload()
-                        ElseIf PageCurrent = PageType.Launch Then
-                            '正在主页，需要刷新左边栏
-                            FrmLaunchLeft.RefreshPage(False)
                         End If
                     ElseIf Str.StartsWithF("file:///") Then
                         '文件拖拽（例如从浏览器下载窗口拖入）

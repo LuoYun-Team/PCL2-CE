@@ -15,7 +15,7 @@ Public Module ModBase
 #Region "声明"
 
     '下列版本信息由更新器自动修改
-    Public Const VersionBaseName As String = "2.11.0" '不含分支前缀的显示用版本名
+    Public Const VersionBaseName As String = "2.11.0a" '不含分支前缀的显示用版本名
     Public Const VersionStandardCode As String = "2.11.0." & VersionBranchCode '标准格式的四段式版本号
     Public Const CommitHash As String = "native" 'Commit Hash，由 GitHub Workflow 自动替换
     Public CommitHashShort As String = If(CommitHash = "native", "native", CommitHash.Substring(0, 7)) 'Commit Hash，取前 7 位
@@ -1545,7 +1545,7 @@ RetryDir:
         '常见错误（记得同时修改下面的）
         Dim CommonReason As String = Nothing
         If TypeOf InnerEx Is TypeLoadException OrElse TypeOf InnerEx Is BadImageFormatException OrElse TypeOf InnerEx Is MissingMethodException OrElse TypeOf InnerEx Is NotImplementedException OrElse TypeOf InnerEx Is TypeInitializationException Then
-            CommonReason = "PCL 的运行环境存在问题。请尝试重新安装 .NET Framework 4.8 然后再试。若无法安装，请先卸载较新版本的 .NET Framework，然后再尝试安装。"
+            CommonReason = "PCL 的运行环境存在问题。请尝试重新安装 .NET Framework 4.8.1 然后再试。若无法安装，请先卸载较新版本的 .NET Framework，然后再尝试安装。"
         ElseIf TypeOf InnerEx Is UnauthorizedAccessException Then
             CommonReason = "PCL 的权限不足。请尝试右键 PCL，选择以管理员身份运行。"
         ElseIf TypeOf InnerEx Is OutOfMemoryException Then
@@ -1590,7 +1590,7 @@ RetryDir:
         '常见错误（记得同时修改上面的）
         Dim CommonReason As String = Nothing
         If TypeOf InnerEx Is TypeLoadException OrElse TypeOf InnerEx Is BadImageFormatException OrElse TypeOf InnerEx Is MissingMethodException OrElse TypeOf InnerEx Is NotImplementedException OrElse TypeOf InnerEx Is TypeInitializationException Then
-            CommonReason = "PCL 的运行环境存在问题。请尝试重新安装 .NET Framework 4.8 然后再试。若无法安装，请先卸载较新版本的 .NET Framework，然后再尝试安装。"
+            CommonReason = "PCL 的运行环境存在问题。请尝试重新安装 .NET Framework 4.8.1 然后再试。若无法安装，请先卸载较新版本的 .NET Framework，然后再尝试安装。"
         ElseIf TypeOf InnerEx Is UnauthorizedAccessException Then
             CommonReason = "PCL 的权限不足。请尝试右键 PCL，选择以管理员身份运行。"
         ElseIf TypeOf InnerEx Is OutOfMemoryException Then
@@ -2275,12 +2275,14 @@ RetryDir:
         Return NewProcess.ExitCode
     End Function
 
+    Public IsRestrictedFeatAllowed As Boolean = False
     ''' <summary>
-    ''' 判断当前系统语言是否为 zh-CN。
+    ''' 获取区域限制状态，用于判断是否允许使用部分区域限制功能。
     ''' </summary>
-    Public Function IsSystemLanguageChinese() As Boolean
-        Return CultureInfo.CurrentCulture.Name = "zh-CN" OrElse CultureInfo.CurrentUICulture.Name = "zh-CN"
-    End Function
+    Public Sub GetCoR()
+        If TimeZoneInfo.Local.Id = "China Standard Time" AndAlso
+            (CultureInfo.CurrentCulture.Name = "zh-CN" OrElse CultureInfo.CurrentUICulture.Name = "zh-CN") Then IsRestrictedFeatAllowed = True
+    End Sub
 
     Private Uuid As Integer = 1
     Private UuidLock As Object

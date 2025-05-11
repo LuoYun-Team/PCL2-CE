@@ -48,7 +48,10 @@
             Log(ex, "收集 Minecraft 隔离文件夹下的日志失败")
         End Try
         PossibleLogs.Add(VersionPathIndie & "logs\latest.log") 'Minecraft 日志
-        PossibleLogs.Add(VersionPathIndie & "logs\debug.log") 'Minecraft Debug 日志
+        Dim LaunchScript As String = ReadFile(Path & "PCL\LatestLaunch.bat")
+        If LaunchScript.ContainsF("-Dlog4j2.formatMsgNoLookups=false") Then
+            PossibleLogs.Add(VersionPathIndie & "logs\debug.log") 'Minecraft Debug 日志
+        End If
         PossibleLogs = PossibleLogs.Distinct.ToList
 
         '确定最新的日志文件
@@ -902,6 +905,28 @@ NextStack:
                             Log($"[Crash] 导出文件：{FileName}，编码：{FileEncoding.HeaderName}")
                         End If
                     Next
+                    '输出环境与启动信息
+                    Dim EnvInfo As String = Nothing
+                    Dim McLauncherLog As String = Nothing
+                    McLauncherLog = ReadFile(TempFolder & "Report\PCL 启动器日志.txt").AfterLast("[Launch] ~ 基础参数 ~").BeforeFirst("开始 Minecraft 日志监控")
+                    Dim LaunchScript As String = ReadFile(TempFolder & "Report\启动脚本.bat")
+                    EnvInfo += $"PCL CE 版本：{VersionBranchName} {VersionBaseName}{vbCrLf}"
+                    EnvInfo += $"识别码：{UniqueAddress}{vbCrLf}"
+                    EnvInfo += $"{vbCrLf}- 档案信息 -{vbCrLf}"
+                    EnvInfo += $"启动档案：{McLauncherLog.Between("玩家用户名：", "[").TrimEnd("[").Trim()}（验证方式：{McLauncherLog.Between("登录方式：", "[").TrimEnd("[").Trim()}）{vbCrLf}"
+                    EnvInfo += $"{vbCrLf}- 实例信息 -{vbCrLf}"
+                    EnvInfo += $"选定的 Java 虚拟机：{McLauncherLog.Between("Java 信息：", "[").TrimEnd("[").Trim()}{vbCrLf}"
+                    EnvInfo += $"Log4j2 NoLookups：{Not LaunchScript.ContainsF("-Dlog4j2.formatMsgNoLookups=false")}{vbCrLf}"
+                    EnvInfo += $"MC 文件夹：{McLauncherLog.Between("MC 文件夹：", "[").TrimEnd("[").Trim()}{vbCrLf}"
+                    EnvInfo += $"{vbCrLf}- 环境信息 -{vbCrLf}"
+                    EnvInfo += $"操作系统：{OSInfo}（64 位：{Not Is32BitSystem}, ARM64: {IsArm64System}）{vbCrLf}"
+                    EnvInfo += $"CPU：{CPUName}{vbCrLf}"
+                    EnvInfo += $"内存分配（分配的内存 / 已安装物理内存）：{McLauncherLog.Between("分配的内存：", "[").TrimEnd("[").Trim()} / {SystemMemorySize / 1024} GB （{SystemMemorySize} MB){vbCrLf}"
+                    For Each GPU In GPUs
+                        EnvInfo += $"显卡 {GPUs.IndexOf(GPU)}：{GPU.Name}（{GPU.Memory} MB, {GPU.DriverVersion}）"
+                    Next
+                    File.CreateText(TempFolder & "Report\环境与启动信息.txt").Close()
+                    WriteFile(TempFolder & "Report\环境与启动信息.txt", EnvInfo, Encoding:=Encoding.UTF8)
                     '导出报告
                     Compression.ZipFile.CreateFromDirectory(TempFolder & "Report\", FileAddress)
                     DeleteDirectory(TempFolder & "Report\")
