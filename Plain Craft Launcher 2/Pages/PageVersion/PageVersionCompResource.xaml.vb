@@ -212,6 +212,7 @@
             PanList.Visibility = Visibility.Visible
             PanList.Children.Clear()
             For Each TargetMod In ShowingMods
+                If Not ModItems.ContainsKey(TargetMod.RawFileName) Then Continue For
                 Dim Item As MyLocalCompItem = ModItems(TargetMod.RawFileName)
                 Item.Checked = SelectedMods.Contains(TargetMod.RawFileName) '更新选中状态
                 PanList.Children.Add(Item)
@@ -1043,7 +1044,7 @@ Install:
                     .Additional = {ModEntry.Comp, New List(Of String), PageVersionLeft.Version.Version.McName,
                         If(PageVersionLeft.Version.Version.HasForge, CompLoaderType.Forge,
                         If(PageVersionLeft.Version.Version.HasNeoForge, CompLoaderType.NeoForge,
-                        If(PageVersionLeft.Version.Version.HasFabric OrElse ModdedLabyMod, CompLoaderType.Fabric, CompLoaderType.Any)))}})
+                        If(PageVersionLeft.Version.Version.HasFabric OrElse ModdedLabyMod, CompLoaderType.Fabric, CompLoaderType.Any))), CurrentCompType}})
             Else
                 '获取信息
                 Dim ContentLines As New List(Of String)

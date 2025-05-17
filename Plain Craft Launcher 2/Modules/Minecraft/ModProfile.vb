@@ -234,39 +234,7 @@ Public Module ModProfile
         ElseIf SelectedAuthTypeNum = 2 Then '第三方验证
             RunInUi(Sub() FrmLaunchLeft.RefreshPage(True, McLoginType.Auth))
         Else '离线验证
-            Dim UserName As String = Nothing '玩家 ID
-            Dim UserUuid As String = Nothing 'UUID
-            RunInUiWait(Sub() UserName = MyMsgBoxInput("新建档案 - 输入档案名称", HintText:="3 - 16 位，只可以使用英文字母、数字与下划线",
-                                                       ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(3, 16), New ValidateRegex("([A-z]|[0-9]|_)+")},
-                                                       Button1:="继续", Button2:="取消"))
-            If UserName = Nothing Then Exit Sub
-            Dim UuidType As Integer = Nothing
-            RunInUiWait(Sub()
-                            Dim UuidTypeList As New List(Of IMyRadio) From {
-                                New MyRadioBox With {.Text = "行业规范 UUID（推荐）"},
-                                New MyRadioBox With {.Text = "官方版 PCL UUID（若单人存档的部分信息丢失，可尝试此项）"},
-                                New MyRadioBox With {.Text = "自定义"}
-                            }
-                            UuidType = MyMsgBoxSelect(UuidTypeList, "新建档案 - 选择 UUID 类型", "继续")
-                        End Sub)
-            If UuidType = 0 Then
-                UserUuid = GetOfflineUuid(UserName, False)
-            ElseIf UuidType = 1 Then
-                UserUuid = GetOfflineUuid(UserName, IsLegacy:=True)
-            Else
-                UserUuid = MyMsgBoxInput("新建档案 - 输入 UUID", HintText:="32 位，不含连字符",
-                                         ValidateRules:=New ObjectModel.Collection(Of Validate) From {New ValidateLength(32, 32), New ValidateRegex("([A-z]|[0-9]){32}", "UUID 只应该包括英文字母和数字！")},
-                                         Button1:="继续", Button2:="取消")
-            End If
-            If UserUuid = Nothing Then Exit Sub
-            Dim NewProfile = New McProfile With {
-                .Type = McLoginType.Legacy,
-                .Uuid = UserUuid,
-                .Username = UserName,
-                .Desc = ""}
-            ProfileList.Add(NewProfile)
-            SaveProfile()
-            Hint("档案新建成功！", HintType.Finish)
+            RunInUi(Sub() FrmLaunchLeft.RefreshPage(True, McLoginType.Legacy))
         End If
     End Sub
     ''' <summary>
@@ -543,10 +511,10 @@ Write:
     ''' <returns>显示的详情信息</returns>
     Public Function GetProfileInfo(Profile As McProfile)
         Dim Info As String = Nothing
-        If Profile.Type = 3 Then
+        If Profile.Type = McLoginType.Auth Then
             Info += "第三方验证"
             If Not String.IsNullOrWhiteSpace(Profile.ServerName) Then Info += $" / {Profile.ServerName}"
-        ElseIf Profile.Type = 5 Then
+        ElseIf Profile.Type = McLoginType.Ms Then
             Info += "正版验证"
         Else
             Info += "离线验证"
@@ -763,7 +731,19 @@ Retry:
         If Len(Uuid) = 32 Then Return Uuid
         '从官网获取
         Try
-            Dim GotJson As JObject = NetGetCodeByRequestRetry("https://api.mojang.com/users/profiles/minecraft/" & Name, IsJson:=True)
+            Dim GotJson As JObject = Nothing
+            Dim Finished = False
+            RunInNewThread(Sub()
+                               Try
+                                   GotJson = NetGetCodeByRequestRetry("https://api.mojang.com/users/profiles/minecraft/" & Name, IsJson:=True)
+                               Catch ex As Exception
+                               Finally
+                                   Finished = True
+                               End Try
+                           End Sub, $"{Name} Uuid Get")
+            While Not Finished
+                Thread.Sleep(50)
+            End While
             If GotJson Is Nothing Then Throw New FileNotFoundException("正版玩家档案不存在（" & Name & "）")
             Uuid = If(GotJson("id"), "")
         Catch ex As Exception

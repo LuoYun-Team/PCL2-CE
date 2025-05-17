@@ -15,12 +15,12 @@ Public Module ModBase
 #Region "声明"
 
     '下列版本信息由更新器自动修改
-    Public Const VersionBaseName As String = "2.11.0a" '不含分支前缀的显示用版本名
-    Public Const VersionStandardCode As String = "2.11.0." & VersionBranchCode '标准格式的四段式版本号
+    Public Const VersionBaseName As String = "2.11.1b" '不含分支前缀的显示用版本名
+    Public Const VersionStandardCode As String = "2.11.1." & VersionBranchCode '标准格式的四段式版本号
     Public Const CommitHash As String = "native" 'Commit Hash，由 GitHub Workflow 自动替换
     Public CommitHashShort As String = If(CommitHash = "native", "native", CommitHash.Substring(0, 7)) 'Commit Hash，取前 7 位
     Public Const UpstreamVersion As String = "2.10.0" '上游版本
-    Public Const VersionCode As Integer = 368 '内部版本号
+    Public Const VersionCode As Integer = 370 '内部版本号
     '自动生成的版本信息
 #If RELEASE Then
     Public Const VersionBranchName As String = "Slow Ring"
@@ -211,6 +211,10 @@ Public Module ModBase
         ''' 图标，添加，1x
         ''' </summary>
         Public Const IconButtonAdd As String = "M512.277 954.412c-118.89 0-230.659-46.078-314.73-129.73S67.12 629.666 67.12 511.222s46.327-229.744 130.398-313.427 195.82-129.73 314.73-129.73 230.659 46.078 314.72 129.73S957.397 392.81 957.397 511.183 911.078 740.96 826.97 824.642s-195.8 129.77-314.692 129.77z m0-822.784c-101.972 0-197.809 39.494-269.865 111.222s-111.7 166.997-111.7 268.373 39.653 196.695 111.67 268.335S410.246 890.78 512.248 890.78s197.809-39.484 269.865-111.222 111.7-166.998 111.67-268.374c-0.03-101.375-39.654-196.665-111.67-268.303S614.22 131.628 512.277 131.628z m222.585 347.8H544.073V288.64c-0.76-17.561-15.613-31.18-33.173-30.419-16.495 0.714-29.704 13.924-30.419 30.419v190.787H289.703c-17.56 0.761-31.179 15.614-30.419 33.174 0.715 16.494 13.924 29.703 30.42 30.418H480.48v190.788c0.761 17.56 15.614 31.179 33.174 30.419 16.494-0.715 29.703-13.925 30.418-30.42V543.02h190.788c17.56 0.762 32.413-12.857 33.173-30.418 0.762-17.561-12.858-32.414-30.419-33.174a31.683 31.683 0 0 0-2.753 0z"
+        ''' <summary>
+        ''' 图标，开始游戏，1x
+        ''' </summary>
+        Public Const IconPlayGame As String = "M213.333333 896V128a42.666667 42.666667 0 0 1 65.706667-35.882667l597.333333 384a42.666667 42.666667 0 0 1 0 71.765334l-597.333333 384A42.666667 42.666667 0 0 1 213.333333 896z m85.333334-78.165333L774.4 512 298.666667 206.165333v611.669334z"
     End Class
 
 #End Region
@@ -3109,6 +3113,8 @@ Retry:
                 IsInitSuccess = False
                 Hint("可能同时开启了多个 PCL，程序可能会出现未知问题！", HintType.Critical)
                 Log(ex, "日志初始化失败（疑似文件占用问题）")
+            Catch ex As ComponentModel.Win32Exception
+                Hint("与系统底层交互异常，请尝试通过重新安装 .NET 框架解决！", HintType.Critical)
             Catch ex As Exception
                 IsInitSuccess = False
                 Log(ex, "日志初始化失败", LogLevel.Hint)
@@ -3238,6 +3244,8 @@ Retry:
 #End If
         If IsProgramEnded Then Exit Sub
 
+        If Ex.GetType() = GetType(ComponentModel.Win32Exception) Then ExFull += vbCrLf & "与系统底层交互失败，请尝试重新安装 .NET Framework 4.8.1 解决此问题"
+
         '输出提示
         Select Case Level
             Case LogLevel.Normal
@@ -3288,12 +3296,19 @@ Retry:
         Return System.Text.Encoding.UTF8.GetString(decodedBytes)
 
     End Function
+    Public Function Base64Encode(Text As String) As String
+        Dim bytes As Byte() = System.Text.Encoding.UTF8.GetBytes(Text)
+        Return Convert.ToBase64String(bytes)
+    End Function
+    Public Function Base64Encode(bytes As Byte()) As String
+        Return Convert.ToBase64String(bytes)
+    End Function
     '反馈
     Public Sub Feedback(Optional ShowMsgbox As Boolean = True, Optional ForceOpenLog As Boolean = False)
         On Error Resume Next
         FeedbackInfo()
         If ForceOpenLog OrElse (ShowMsgbox AndAlso MyMsgBox("若你在汇报一个 Bug，请点击 打开文件夹 按钮，并上传 Log-CE(1~5).txt 中包含错误信息的文件。" & vbCrLf & "游戏崩溃一般与启动器无关，请不要因为游戏崩溃而提交反馈。", "反馈提交提醒", "打开文件夹", "不需要") = 1) Then
-            OpenExplorer(Path & "PCL\Log-CE1.txt")
+            OpenExplorer(Path & "PCL\Log-CE1.log")
         End If
         OpenWebsite("https://github.com/PCL-Community/PCL2-CE/issues/")
     End Sub
