@@ -419,6 +419,31 @@ GotFabric:
                 Log(ex, "读取 fabric.mod.json 时出现未知错误（" & Path & "）", LogLevel.Developer)
             End Try
 #End Region
+#Region "尝试使用 quilt.mod.json" 'modified from fabric.mod.json
+            Try
+                '获取 quilt.mod.json 文件
+                Dim QuiltEntry As ZipArchiveEntry = Jar.GetEntry("quilt.mod.json")
+                Dim QuiltText As String = Nothing
+                If QuiltEntry IsNot Nothing Then
+                    QuiltText = ReadFile(QuiltEntry.Open(), Encoding.UTF8)
+                    If Not QuiltText.Contains("schema_version") Then QuiltText = Nothing
+                End If
+                If QuiltText Is Nothing Then Exit Try
+                Dim QuiltObject As JObject = GetJson(QuiltText)("quilt_loader")
+                '从文件中获取 Mod 信息项
+                If QuiltObject.ContainsKey("id") Then ModId = QuiltObject("id")
+                If QuiltObject.ContainsKey("version") Then Version = QuiltObject("version")
+                If QuiltObject.ContainsKey("metadata") Then
+                    Dim QuiltMetadata As JObject = QuiltObject("metadata")
+                    If QuiltMetadata.ContainsKey("name") Then Name = QuiltMetadata("name")
+                    If QuiltMetadata.ContainsKey("description") Then Description = QuiltMetadata("description")
+                    If QuiltMetadata.ContainsKey("contact") Then Url = If(QuiltMetadata("contact")("homepage"), "")
+                End If
+                GoTo Finished
+            Catch ex As Exception
+                Log(ex, "读取 quilt.mod.json 时出现未知错误（" & Path & "）", LogLevel.Developer)
+            End Try
+#End Region
 #Region "尝试使用 mods.toml"
             Try
                 '获取 mods.toml 文件
@@ -843,8 +868,8 @@ Finished:
                     If File.DirectoryName.ToLower & "\" <> RawName Then
                         '仅当 Forge 1.13- 且文件夹名与版本号相同时，才加载该子文件夹下的 Mod
                         If Not (PageVersionLeft.Version IsNot Nothing AndAlso PageVersionLeft.Version.Version.HasForge AndAlso
-                                    PageVersionLeft.Version.Version.McCodeMain < 13 AndAlso
-                                    File.Directory.Name = "1." & PageVersionLeft.Version.Version.McCodeMain & "." & PageVersionLeft.Version.Version.McCodeSub) Then
+                                PageVersionLeft.Version.Version.McCodeMain < 13 AndAlso
+                                File.Directory.Name = $"1.{PageVersionLeft.Version.Version.McCodeMain}.{PageVersionLeft.Version.Version.McCodeSub}") Then
                             Continue For
                         End If
                     End If
@@ -1134,7 +1159,11 @@ Finished:
         Next
         WriteFile(PathTemp & "Cache\LocalComp.json", Cache.ToString(If(ModeDebug, Newtonsoft.Json.Formatting.Indented, Newtonsoft.Json.Formatting.None)))
         '刷新边栏
-        RunInUi(Sub() Loader.Input.Frm.RefreshBars())
+        If FrmVersionMod?.Filter = PageVersionCompResource.FilterType.CanUpdate Then
+            RunInUi(Sub() FrmVersionMod?.RefreshUI()) '同步 “可更新” 列表 (#4677)
+        Else
+            RunInUi(Sub() FrmVersionMod?.RefreshBars())
+        End If
     End Sub
 
     Public Function GetCurrentVersionModLoader() As List(Of CompLoaderType)

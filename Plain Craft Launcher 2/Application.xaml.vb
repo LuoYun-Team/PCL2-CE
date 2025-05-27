@@ -1,6 +1,7 @@
 ﻿Imports System.Drawing
 Imports System.Reflection
 Imports System.Windows.Threading
+Imports System.IO.Compression
 
 Public Class Application
 
@@ -20,6 +21,9 @@ Public Class Application
     '开始
     Private Sub Application_Startup(sender As Object, e As StartupEventArgs) Handles Me.Startup
         Try
+            '创建自定义跟踪监听器，用于检测是否存在 Binding 失败
+            PresentationTraceSources.DataBindingSource.Listeners.Add(New BindingErrorTraceListener())
+            PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error
             SecretOnApplicationStart()
             '检查参数调用
             If e.Args.Length > 0 Then
@@ -126,18 +130,41 @@ WaitRetry:
             If Is32BitSystem Then
                 MyMsgBox("PCL 和新版 Minecraft 均不再支持 32 位系统，部分功能将无法使用。" & vbCrLf & "非常建议重装为 64 位系统后再进行游戏！", "环境警告", "我知道了", IsWarn:=True)
             End If
+            Dim IS_WINDOWS_MEET_REQUIRE As Boolean = Environment.OSVersion.Version.Major >= 10
+            Dim IS_FRAMEWORK_MEET_REQUIRE As Boolean = Val(Microsoft.Win32.Registry.GetValue("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full", "Release", "528049").ToString.AfterFirst("(").BeforeFirst(")")) >= 533320
+            Dim ProblemList As New List(Of String)
+            If Not IS_WINDOWS_MEET_REQUIRE Then ProblemList.Add("Windows 版本不满足最低要求，最低需要 Windows 10 20H2")
+            If Not IS_FRAMEWORK_MEET_REQUIRE Then ProblemList.Add(".NET Framework 版本不满足要求，需要 .NET Framework 4.8.1")
+            If ProblemList.Count <> 0 Then
+                MyMsgBox("PCL CE 在启动时检测到环境问题：" & vbCrLf & vbCrLf &
+                         ProblemList.Join(vbCrLf) & vbCrLf & vbCrLf &
+                         "需要解决这些问题才能正常使用启动器……",
+                        Button2:=If(IS_WINDOWS_MEET_REQUIRE, String.Empty, "升级系统"),
+                        Button2Action:=Sub() OpenWebsite("https://www.microsoft.com/zh-cn/software-download/windows10"),
+                        Button3:=If(IS_FRAMEWORK_MEET_REQUIRE, String.Empty, "安装框架"),
+                        Button3Action:=Sub() OpenWebsite("https://dotnet.microsoft.com/zh-cn/download/dotnet-framework/thank-you/net481-offline-installer"))
+            End If
             '设置初始化
             Setup.Load("SystemDebugMode")
             Setup.Load("SystemDebugAnim")
             Setup.Load("ToolDownloadThread")
             Setup.Load("ToolDownloadCert")
+            Setup.Load("ToolDownloadSpeed")
             '释放资源
             Directory.CreateDirectory(PathPure & "CE")
             SetDllDirectory(PathPure & "CE")
             WriteFile(PathPure & "CE\" & "libwebp.dll", GetResources("libwebp64"))
+            If Not Directory.Exists(Path & "runtimes") Then
+                WriteFile(PathPure & "CE\" & "msalruntime.zip", GetResources("msalruntime"))
+                Using fs = New FileStream(PathPure & "CE\" & "msalruntime.zip", FileMode.Open)
+                    Using fszip = New ZipArchive(fs)
+                        fszip.ExtractToDirectory(Path)
+                    End Using
+                End Using
+            End If
             '网络配置初始化
             ServicePointManager.Expect100Continue = True
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Ssl3 Or SecurityProtocolType.Tls Or SecurityProtocolType.Tls11 Or SecurityProtocolType.Tls12
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Ssl3 Or SecurityProtocolType.Tls Or SecurityProtocolType.Tls11 Or SecurityProtocolType.Tls12 Or SecurityProtocolType.Tls13
             ServicePointManager.DefaultConnectionLimit = 1024
             '设置字体
             Dim TargetFont As String = Setup.Get("UiFont")
@@ -211,47 +238,6 @@ WaitRetry:
 
     '控件模板事件
     Private Sub MyIconButton_Click(sender As Object, e As EventArgs)
-        Select Case Setup.Get("LoginType")
-            Case McLoginType.Ms
-                '微软
-                Dim MsJson As JObject = GetJson(Setup.Get("LoginMsJson"))
-                MsJson.Remove(sender.Tag)
-                Setup.Set("LoginMsJson", MsJson.ToString(Newtonsoft.Json.Formatting.None))
-                If FrmLoginMs.ComboAccounts.SelectedItem Is sender.Parent Then FrmLoginMs.ComboAccounts.SelectedIndex = 0
-                FrmLoginMs.ComboAccounts.Items.Remove(sender.Parent)
-            Case McLoginType.Legacy
-                '离线
-                Dim Names As New List(Of String)
-                Names.AddRange(Setup.Get("LoginLegacyName").ToString.Split("¨"))
-                Names.Remove(sender.Tag)
-                Setup.Set("LoginLegacyName", Join(Names, "¨"))
-                FrmLoginLegacy.ComboName.ItemsSource = Names
-                FrmLoginLegacy.ComboName.Text = If(Names.Any, Names(0), "")
-            Case Else
-                '第三方
-                Dim Token As String = GetStringFromEnum(Setup.Get("LoginType"))
-                Dim Dict As New Dictionary(Of String, String)
-                Dim Names As New List(Of String)
-                Dim Passs As New List(Of String)
-                If Not Setup.Get("Login" & Token & "Email") = "" Then Names.AddRange(Setup.Get("Login" & Token & "Email").ToString.Split("¨"))
-                If Not Setup.Get("Login" & Token & "Pass") = "" Then Passs.AddRange(Setup.Get("Login" & Token & "Pass").ToString.Split("¨"))
-                For i = 0 To Names.Count - 1
-                    Dict.Add(Names(i), Passs(i))
-                Next
-                Dict.Remove(sender.Tag)
-                Setup.Set("Login" & Token & "Email", Join(Dict.Keys, "¨"))
-                Setup.Set("Login" & Token & "Pass", Join(Dict.Values, "¨"))
-                Select Case Token
-                    Case "Nide"
-                        FrmLoginNide.ComboName.ItemsSource = Dict.Keys
-                        FrmLoginNide.ComboName.Text = If(Dict.Keys.Any, Dict.Keys(0), "")
-                        FrmLoginNide.TextPass.Password = If(Dict.Values.Any, Dict.Values(0), "")
-                    Case "Auth"
-                        FrmLoginAuth.ComboName.ItemsSource = Dict.Keys
-                        FrmLoginAuth.ComboName.Text = If(Dict.Keys.Any, Dict.Keys(0), "")
-                        FrmLoginAuth.TextPass.Password = If(Dict.Values.Any, Dict.Values(0), "")
-                End Select
-        End Select
     End Sub
 
     Public Shared ShowingTooltips As New List(Of Border)
@@ -261,5 +247,18 @@ WaitRetry:
     Private Sub TooltipUnloaded(sender As Border, e As RoutedEventArgs)
         ShowingTooltips.Remove(sender)
     End Sub
+
+    ' 自定义监听器类
+    Public Class BindingErrorTraceListener
+        Inherits TraceListener
+
+        Public Overrides Sub Write(message As String)
+            Log($"警告，检测到 Binding 失败：{message}")
+        End Sub
+
+        Public Overrides Sub WriteLine(message As String)
+            Log($"警告，检测到 Binding 失败：{message}")
+        End Sub
+    End Class
 
 End Class

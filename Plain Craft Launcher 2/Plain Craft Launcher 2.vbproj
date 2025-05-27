@@ -280,12 +280,25 @@
     <Compile Include="Controls\MyIconTextButton.xaml.vb">
       <DependentUpon>MyIconTextButton.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Helper\SemVer.vb" />
     <Compile Include="Modules\Minecraft\ModComp.vb" />
     <Compile Include="Modules\Minecraft\ModJava.vb" />
     <Compile Include="Modules\Minecraft\ModLocalComp.vb" />
     <Compile Include="Modules\Minecraft\ModModpack.vb" />
-    <Compile Include="Modules\Minecraft\MyLocalCompItem.xaml.vb">
-      <DependentUpon>MyLocalCompItem.xaml</DependentUpon>
+    <Compile Include="Modules\Minecraft\ModProfile.vb" />
+    <Compile Include="Modules\Minecraft\ModStyle.vb" />
+    <Compile Include="Modules\Updates\AnnouncementDataModel.vb" />
+    <Compile Include="Modules\Updates\EnumUpdateChannel.vb" />
+    <Compile Include="Modules\Updates\IUpdateSource.vb" />
+    <Compile Include="Modules\Updates\UpdateInfoModel.vb" />
+    <Compile Include="Modules\Updates\UpdatesMinioModel.vb" />
+    <Compile Include="Modules\Updates\UpdatesMirrorChyanModel.vb" />
+    <Compile Include="Modules\Updates\VersionDataModel.vb" />
+    <Compile Include="Pages\PageLaunch\PageLoginOffline.xaml.vb">
+      <DependentUpon>PageLoginOffline.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageVersion\MyLocalModItem.xaml.vb">
+      <DependentUpon>MyLocalModItem.xaml</DependentUpon>
     </Compile>
     <Compile Include="Modules\ModEvent.vb" />
     <Compile Include="Controls\MyExtraButton.xaml.vb">
@@ -318,18 +331,14 @@
     <Compile Include="Modules\ModDevelop.vb" />
     <Compile Include="Modules\Minecraft\ModWatcher.vb" />
     <Compile Include="Modules\ModSecret.vb" />
-    <Compile Include="Modules\Reference\CookieWebClient.vb">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="Pages\PageDownload\ModDownloadLib.vb" />
-    <Compile Include="Modules\Minecraft\MyCompItem.xaml.vb">
-      <DependentUpon>MyCompItem.xaml</DependentUpon>
+    <Compile Include="Pages\PageDownload\Comp\PageComp.xaml.vb">
+      <DependentUpon>PageComp.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageDownload\PageDownloadCleanroom.xaml.vb">
       <DependentUpon>PageDownloadCleanroom.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Pages\PageDownload\PageDownloadResourcePack.xaml.vb">
-      <DependentUpon>PageDownloadResourcePack.xaml</DependentUpon>
+    <Compile Include="Pages\PageDownload\PageDownloadLabyMod.xaml.vb">
+      <DependentUpon>PageDownloadLabyMod.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageDownload\PageDownloadQuilt.xaml.vb">
       <DependentUpon>PageDownloadQuilt.xaml</DependentUpon>
@@ -337,7 +346,23 @@
     <Compile Include="Pages\PageDownload\PageDownloadCompFavorites.xaml.vb">
       <DependentUpon>PageDownloadCompFavorites.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Pages\PageDownload\PageDownloadMod.xaml.vb">
+    <Compile Include="Pages\PageDownload\Comp\PageDownloadDataPack.xaml.vb">
+      <DependentUpon>PageDownloadDataPack.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageDownload\Comp\PageDownloadPack.xaml.vb">
+      <DependentUpon>PageDownloadPack.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageDownload\Comp\PageDownloadShader.xaml.vb">
+      <DependentUpon>PageDownloadShader.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageDownload\Comp\PageDownloadResourcePack.xaml.vb">
+      <DependentUpon>PageDownloadResourcePack.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageDownload\ModDownloadLib.vb" />
+    <Compile Include="Pages\PageDownload\Comp\MyCompItem.xaml.vb">
+      <DependentUpon>MyCompItem.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageDownload\Comp\PageDownloadMod.xaml.vb">
       <DependentUpon>PageDownloadMod.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageDownload\PageDownloadFabric.xaml.vb">
@@ -346,35 +371,26 @@
     <Compile Include="Pages\PageDownload\PageDownloadInstall.xaml.vb">
       <DependentUpon>PageDownloadInstall.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Pages\PageDownload\PageDownloadCompDetail.xaml.vb">
+    <Compile Include="Pages\PageDownload\Comp\PageDownloadCompDetail.xaml.vb">
       <DependentUpon>PageDownloadCompDetail.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageDownload\PageDownloadNeoForge.xaml.vb">
       <DependentUpon>PageDownloadNeoForge.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Pages\PageDownload\PageDownloadPack.xaml.vb">
-      <DependentUpon>PageDownloadPack.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\PageDownload\PageDownloadShader.xaml.vb">
-      <DependentUpon>PageDownloadShader.xaml</DependentUpon>
-    </Compile>
     <Compile Include="Pages\PageLaunch\MyMsgLogin.xaml.vb">
       <DependentUpon>MyMsgLogin.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageLaunch\PageLoginProfileSkin.xaml.vb">
+      <DependentUpon>PageLoginProfileSkin.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PageLaunch\PageLoginProfile.xaml.vb">
+      <DependentUpon>PageLoginProfile.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageLaunch\PageLoginAuth.xaml.vb">
       <DependentUpon>PageLoginAuth.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Pages\PageLaunch\PageLoginAuthSkin.xaml.vb">
-      <DependentUpon>PageLoginAuthSkin.xaml</DependentUpon>
-    </Compile>
     <Compile Include="Pages\PageLaunch\PageLoginMs.xaml.vb">
       <DependentUpon>PageLoginMs.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\PageLaunch\PageLoginMsSkin.xaml.vb">
-      <DependentUpon>PageLoginMsSkin.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\PageLaunch\PageLoginNideSkin.xaml.vb">
-      <DependentUpon>PageLoginNideSkin.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageLink\PageLinkFeedback.xaml.vb">
       <DependentUpon>PageLinkFeedback.xaml</DependentUpon>
@@ -454,12 +470,6 @@
     </Compile>
     <Compile Include="Pages\PageLaunch\MySkin.xaml.vb">
       <DependentUpon>MySkin.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\PageLaunch\PageLoginNide.xaml.vb">
-      <DependentUpon>PageLoginNide.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\PageLaunch\PageLoginLegacy.xaml.vb">
-      <DependentUpon>PageLoginLegacy.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\PageSelectRight.xaml.vb">
       <DependentUpon>PageSelectRight.xaml</DependentUpon>
@@ -611,21 +621,13 @@
       <DependentUpon>FormMain.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="Modules\Minecraft\MyLocalCompItem.xaml">
+    <Page Include="Pages\PageDownload\Comp\MyCompItem.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Modules\Minecraft\MyCompItem.xaml">
-      <Generator>MSBuild:Compile</Generator>
+    <Page Include="Pages\PageDownload\Comp\PageComp.xaml">
       <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Pages\PageDownload\PageDownloadCleanroom.xaml">
       <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Pages\PageDownload\PageDownloadResourcePack.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\PageDownload\PageDownloadQuilt.xaml">
       <Generator>MSBuild:Compile</Generator>
@@ -635,7 +637,31 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Pages\PageDownload\PageDownloadMod.xaml">
+    <Page Include="Pages\PageDownload\PageDownloadCleanroom.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PageDownload\PageDownloadLabyMod.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PageDownload\Comp\PageDownloadDataPack.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PageDownload\Comp\PageDownloadPack.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PageDownload\Comp\PageDownloadShader.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PageDownload\Comp\PageDownloadResourcePack.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Pages\PageDownload\Comp\PageDownloadMod.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -647,7 +673,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Pages\PageDownload\PageDownloadCompDetail.xaml">
+    <Page Include="Pages\PageDownload\Comp\PageDownloadCompDetail.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -655,37 +681,26 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="Pages\PageDownload\PageDownloadPack.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Pages\PageDownload\PageDownloadShader.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
     <Page Include="Pages\PageLaunch\MyMsgLogin.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Pages\PageLaunch\PageLoginAuth.xaml">
+    <Page Include="Pages\PageLaunch\PageLoginOffline.xaml" />
+    <Page Include="Pages\PageLaunch\PageLoginProfileSkin.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Pages\PageLaunch\PageLoginAuthSkin.xaml">
+    <Page Include="Pages\PageLaunch\PageLoginProfile.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Pages\PageLaunch\PageLoginAuth.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\PageLaunch\PageLoginMs.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Pages\PageLaunch\PageLoginMsSkin.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Pages\PageLaunch\PageLoginNideSkin.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
     </Page>
     <None Include="app.manifest" />
     <None Include="Resources\Custom.xaml">
@@ -725,6 +740,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\PageLogRight.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PageVersion\MyLocalModItem.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -773,14 +792,6 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Pages\PageLaunch\MySkin.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Pages\PageLaunch\PageLoginNide.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Pages\PageLaunch\PageLoginLegacy.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -1034,6 +1045,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\Help.zip" />
+    <None Include="Resources\msalruntime.zip" />
     <None Include="Resources\transformer.jar" />
   </ItemGroup>
   <ItemGroup>
@@ -1088,6 +1100,9 @@
     <Resource Include="Images\Blocks\Quilt.png" />
   </ItemGroup>
   <ItemGroup>
+    <Resource Include="Images\Blocks\LabyMod.png" />
+  </ItemGroup>
+  <ItemGroup>
     <Resource Include="Images\Blocks\NeoForge.png" />
   </ItemGroup>
   <ItemGroup>
@@ -1110,11 +1125,17 @@
     <PackageReference Include="Imazen.WebP">
       <Version>10.0.1</Version>
     </PackageReference>
+    <PackageReference Include="Microsoft.Identity.Client">
+      <Version>4.71.1</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Identity.Client.Broker">
+      <Version>4.71.1</Version>
+    </PackageReference>
     <PackageReference Include="Microsoft.Windows.SDK.Contracts">
       <Version>10.0.19041.2</Version>
     </PackageReference>
     <PackageReference Include="IPNetwork2">
-      <Version>3.1.743</Version>
+      <Version>2.6.618</Version>
     </PackageReference>
     <PackageReference Include="Makaretu.Nat">
       <Version>0.2.0</Version>
@@ -1140,6 +1161,9 @@
     <PackageReference Include="System.Security.AccessControl">
       <Version>6.0.1</Version>
     </PackageReference>
+    <PackageReference Include="TagLibSharp">
+      <Version>2.3.0</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Images\Blocks\Cleanroom.png" />
@@ -1153,5 +1177,9 @@
   <ItemGroup>
     <Resource Include="Images\Heads\Pysio.jpg" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\linkd.exe" />
+  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
 </Project>

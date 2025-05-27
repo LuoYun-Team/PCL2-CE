@@ -1,3 +1,5 @@
+Imports System.Text.RegularExpressions
+
 Public Class PageVersionInstall
 
     Private Sub LoaderInit() Handles Me.Initialized
@@ -7,17 +9,22 @@ Public Class PageVersionInstall
     End Sub
 
     Private IsLoad As Boolean = False
+    Private LastVersionName As String = Nothing
     Private Sub Init() Handles Me.Loaded
         PanBack.ScrollToHome()
 
         GetCurrentInfo()
 
-        DlOptiFineListLoader.Start()
-        DlLiteLoaderListLoader.Start()
-        DlFabricListLoader.Start()
-        DlQuiltListLoader.Start()
-        DlNeoForgeListLoader.Start()
-        DlCleanroomListLoader.Start()
+        Dim NeedRefresh = LastVersionName Is Nothing OrElse LastVersionName <> SelectedMinecraftId
+        LastVersionName = SelectedMinecraftId
+
+        DlOptiFineListLoader.Start(IsForceRestart:=NeedRefresh)
+        DlLiteLoaderListLoader.Start(IsForceRestart:=NeedRefresh)
+        DlFabricListLoader.Start(IsForceRestart:=NeedRefresh)
+        DlQuiltListLoader.Start(IsForceRestart:=NeedRefresh)
+        DlNeoForgeListLoader.Start(IsForceRestart:=NeedRefresh)
+        DlCleanroomListLoader.Start(IsForceRestart:=NeedRefresh)
+        DlLabyModListLoader.Start(IsForceRestart:=NeedRefresh)
 
         '重载预览
         SelectReload()
@@ -37,6 +44,7 @@ Public Class PageVersionInstall
         LoadNeoForge.State = DlNeoForgeListLoader
         LoadCleanroom.State = DlCleanroomListLoader
         LoadOptiFabric.State = DlOptiFabricLoader
+        LoadLabyMod.State = DlLabyModListLoader
     End Sub
 
 #Region "页面切换"
@@ -71,6 +79,7 @@ Public Class PageVersionInstall
         CardQuilt.IsSwaped = True
         CardQSL.IsSwaped = True
         CardOptiFabric.IsSwaped = True
+        CardLabyMod.IsSwaped = True
 
         If Not Setup.Get("HintInstallBack") Then
             Setup.Set("HintInstallBack", True)
@@ -90,7 +99,7 @@ Public Class PageVersionInstall
             ForgeLoader.Start(SelectedMinecraftId)
         End If
 
-        '启动 Fabric API、QSL、OptiFabric 加载
+        '启动 Fabric API、QSL、OptiFabric、LabyMod 加载
         DlFabricApiLoader.Start()
         DlQSLLoader.Start()
         DlOptiFabricLoader.Start()
@@ -109,6 +118,7 @@ Public Class PageVersionInstall
                 FabricApi_Loaded()
                 Quilt_Loaded()
                 QSL_Loaded()
+                LabyMod_Loaded()
                 OptiFabric_Loaded()
                 SelectReload()
             End Sub, After:=True),
@@ -129,6 +139,7 @@ Public Class PageVersionInstall
                 BtnFabricApiClearInner.SetBinding(Shapes.Path.FillProperty, New Binding("Foreground") With {.Source = CardFabricApi.MainTextBlock, .Mode = BindingMode.OneWay})
                 BtnQuiltClearInner.SetBinding(Shapes.Path.FillProperty, New Binding("Foreground") With {.Source = CardQuilt.MainTextBlock, .Mode = BindingMode.OneWay})
                 BtnQSLClearInner.SetBinding(Shapes.Path.FillProperty, New Binding("Foreground") With {.Source = CardQSL.MainTextBlock, .Mode = BindingMode.OneWay})
+                BtnLabyModClearInner.SetBinding(Shapes.Path.FillProperty, New Binding("Foreground") With {.Source = CardLabyMod.MainTextBlock, .Mode = BindingMode.OneWay})
                 BtnOptiFabricClearInner.SetBinding(Shapes.Path.FillProperty, New Binding("Foreground") With {.Source = CardOptiFabric.MainTextBlock, .Mode = BindingMode.OneWay})
             End Sub,, True)
         }, "FrmVersionInstall SelectPageSwitch", True)
@@ -202,10 +213,14 @@ Public Class PageVersionInstall
         End If
     End Sub
 
-    'Mod Loader 统一判断，内容应为 Forge / NeoForge / Fabric / Quilt / Cleanroom
+    ''' <summary>
+    ''' 选定的 Mod Loader 名称，内容应为 Forge / NeoForge / Fabric / Quilt / Cleanroom / LabyMod
+    ''' </summary>
     Private SelectedLoaderName As String = Nothing
 
-    'Mod Loader API 统一判断，内容应为 Fabric API 或 QFAPI / QSL
+    ''' <summary>
+    ''' 选定的 Mod Loader API 名称，内容应为 Fabric API 或 QFAPI / QSL
+    ''' </summary>
     Private SelectedAPIName As String = Nothing
 
     'LiteLoader
@@ -368,6 +383,28 @@ Public Class PageVersionInstall
         End If
     End Sub
 
+    'LabyMod
+    Private SelectedLabyModChannel As String = Nothing
+    Private SelectedLabyModCommitRef As String = Nothing
+    Private SelectedLabyModVersion As String = Nothing
+    Private Sub SetLabyModInfoShow(IsShow As String)
+        If PanLabyModInfo.Tag = IsShow Then Exit Sub
+        PanLabyModInfo.Tag = IsShow
+        If IsShow = "True" Then
+            '显示信息栏
+            AniStart({
+                AaTranslateY(PanLabyModInfo, -CType(PanLabyModInfo.RenderTransform, TranslateTransform).Y, 270, 100, Ease:=New AniEaseOutBack),
+                AaOpacity(PanLabyModInfo, 1 - PanLabyModInfo.Opacity, 100, 90)
+            }, "SetLabyModInfoShow")
+        Else
+            '隐藏信息栏
+            AniStart({
+                AaTranslateY(PanLabyModInfo, 6 - CType(PanLabyModInfo.RenderTransform, TranslateTransform).Y, 200),
+                AaOpacity(PanLabyModInfo, -PanLabyModInfo.Opacity, 100)
+            }, "SetLabyModInfoShow")
+        End If
+    End Sub
+
     'OptiFabric
     Private SelectedOptiFabric As CompFile = Nothing
     Private Sub SetOptiFabricInfoShow(IsShow As String)
@@ -396,19 +433,22 @@ Public Class PageVersionInstall
     ''' <summary>
     ''' 重载已选择的项目的显示。
     ''' </summary>
-    Private Sub SelectReload() Handles CardOptiFine.Swap, LoadOptiFine.StateChanged, CardForge.Swap, LoadForge.StateChanged, CardNeoForge.Swap, LoadNeoForge.StateChanged, CardFabric.Swap, LoadFabric.StateChanged, CardFabricApi.Swap, LoadFabricApi.StateChanged, CardOptiFabric.Swap, LoadOptiFabric.StateChanged, CardLiteLoader.Swap, LoadLiteLoader.StateChanged, LoadQuilt.StateChanged, CardQuilt.Swap, LoadQSL.StateChanged, CardQSL.Swap, LoadCleanroom.StateChanged, CardCleanroom.Swap
+    Private Sub SelectReload() Handles CardOptiFine.Swap, LoadOptiFine.StateChanged, CardForge.Swap, LoadForge.StateChanged, CardNeoForge.Swap, LoadNeoForge.StateChanged, CardFabric.Swap, LoadFabric.StateChanged, CardFabricApi.Swap, LoadFabricApi.StateChanged, CardOptiFabric.Swap, LoadOptiFabric.StateChanged, CardLiteLoader.Swap, LoadLiteLoader.StateChanged, LoadQuilt.StateChanged, CardQuilt.Swap, LoadQSL.StateChanged, CardQSL.Swap, LoadCleanroom.StateChanged, CardCleanroom.Swap, LoadLabyMod.StateChanged, CardLabyMod.Swap
         If SelectedMinecraftId Is Nothing OrElse IsReloading Then Exit Sub
         IsReloading = True
         Dim SelectedInfo As String = GetSelectInfo()
         '主预览
         ItemSelect.Title = PageVersionLeft.Version.Name
         ItemSelect.Logo = GetSelectLogo()
+        BtnSelectStart.IsEnabled = True
         If SelectedInfo = CurrentInfo Then
             ItemSelect.Info = SelectedInfo
-            BtnSelectStart.IsEnabled = False
+            BtnSelectStart.Text = "开始重置"
+            BtnSelectStart.Logo = Logo.IconButtonReset
         Else
             ItemSelect.Info = CurrentInfo + " → " + SelectedInfo
-            BtnSelectStart.IsEnabled = True
+            BtnSelectStart.Text = "开始修改"
+            BtnSelectStart.Logo = Logo.IconButtonEdit
         End If
         'Minecraft
         LabMinecraft.Text = SelectedMinecraftId
@@ -421,7 +461,7 @@ Public Class PageVersionInstall
         If SelectedOptiFine Is Nothing Then
             BtnOptiFineClear.Visibility = Visibility.Collapsed
             ImgOptiFine.Visibility = Visibility.Collapsed
-            LabOptiFine.Text = If(OptiFineError, "点击选择")
+            LabOptiFine.Text = If(OptiFineError, "可以添加")
             LabOptiFine.Foreground = ColorGray4
         Else
             BtnOptiFineClear.Visibility = Visibility.Visible
@@ -441,7 +481,7 @@ Public Class PageVersionInstall
             If SelectedLiteLoader Is Nothing Then
                 BtnLiteLoaderClear.Visibility = Visibility.Collapsed
                 ImgLiteLoader.Visibility = Visibility.Collapsed
-                LabLiteLoader.Text = If(LiteLoaderError, "点击选择")
+                LabLiteLoader.Text = If(LiteLoaderError, "可以添加")
                 LabLiteLoader.Foreground = ColorGray4
             Else
                 BtnLiteLoaderClear.Visibility = Visibility.Visible
@@ -458,7 +498,7 @@ Public Class PageVersionInstall
         If SelectedForge Is Nothing Then
             BtnForgeClear.Visibility = Visibility.Collapsed
             ImgForge.Visibility = Visibility.Collapsed
-            LabForge.Text = If(ForgeError, "点击选择")
+            LabForge.Text = If(ForgeError, "可以添加")
             LabForge.Foreground = ColorGray4
         Else
             BtnForgeClear.Visibility = Visibility.Visible
@@ -476,7 +516,7 @@ Public Class PageVersionInstall
             If SelectedCleanroom Is Nothing Then
                 BtnCleanroomClear.Visibility = Visibility.Collapsed
                 ImgCleanroom.Visibility = Visibility.Collapsed
-                LabCleanroom.Text = If(CleanroomError, "点击选择")
+                LabCleanroom.Text = If(CleanroomError, "可以添加")
                 LabCleanroom.Foreground = ColorGray4
             Else
                 BtnCleanroomClear.Visibility = Visibility.Visible
@@ -499,7 +539,7 @@ Public Class PageVersionInstall
             If SelectedNeoForge Is Nothing Then
                 BtnNeoForgeClear.Visibility = Visibility.Collapsed
                 ImgNeoForge.Visibility = Visibility.Collapsed
-                LabNeoForge.Text = If(NeoForgeError, "点击选择")
+                LabNeoForge.Text = If(NeoForgeError, "可以添加")
                 LabNeoForge.Foreground = ColorGray4
             Else
                 BtnNeoForgeClear.Visibility = Visibility.Visible
@@ -520,7 +560,7 @@ Public Class PageVersionInstall
             If SelectedFabric Is Nothing Then
                 BtnFabricClear.Visibility = Visibility.Collapsed
                 ImgFabric.Visibility = Visibility.Collapsed
-                LabFabric.Text = If(FabricError, "点击选择")
+                LabFabric.Text = If(FabricError, "可以添加")
                 LabFabric.Foreground = ColorGray4
             Else
                 BtnFabricClear.Visibility = Visibility.Visible
@@ -541,7 +581,7 @@ Public Class PageVersionInstall
             If SelectedFabricApi Is Nothing Then
                 BtnFabricApiClear.Visibility = Visibility.Collapsed
                 ImgFabricApi.Visibility = Visibility.Collapsed
-                LabFabricApi.Text = If(FabricApiError, "点击选择")
+                LabFabricApi.Text = If(FabricApiError, "可以添加")
                 LabFabricApi.Foreground = ColorGray4
             Else
                 BtnFabricApiClear.Visibility = Visibility.Visible
@@ -562,7 +602,7 @@ Public Class PageVersionInstall
             If SelectedQuilt Is Nothing Then
                 BtnQuiltClear.Visibility = Visibility.Collapsed
                 ImgQuilt.Visibility = Visibility.Collapsed
-                LabQuilt.Text = If(QuiltError, "点击选择")
+                LabQuilt.Text = If(QuiltError, "可以添加")
                 LabQuilt.Foreground = ColorGray4
             Else
                 BtnQuiltClear.Visibility = Visibility.Visible
@@ -583,13 +623,34 @@ Public Class PageVersionInstall
             If SelectedQSL Is Nothing Then
                 BtnQSLClear.Visibility = Visibility.Collapsed
                 ImgQSL.Visibility = Visibility.Collapsed
-                LabQSL.Text = If(QSLError, "点击选择")
+                LabQSL.Text = If(QSLError, "可以添加")
                 LabQSL.Foreground = ColorGray4
             Else
                 BtnQSLClear.Visibility = Visibility.Visible
                 ImgQSL.Visibility = Visibility.Visible
                 LabQSL.Text = SelectedQSL.DisplayName.Split("]")(1).Trim
                 LabQSL.Foreground = ColorGray1
+            End If
+        End If
+        'LabyMod
+        If SelectedMinecraftId.Contains("1.") AndAlso Val(SelectedMinecraftId.Split(".")(1)) <= 8 Then
+            CardLabyMod.Visibility = Visibility.Collapsed
+        Else
+            CardLabyMod.Visibility = Visibility.Visible
+            Dim LabyModError As String = LoadLabyModGetError()
+            CardLabyMod.MainSwap.Visibility = If(LabyModError Is Nothing, Visibility.Visible, Visibility.Collapsed)
+            If LabyModError IsNot Nothing Then CardLabyMod.IsSwaped = True
+            SetLabyModInfoShow(CardLabyMod.IsSwaped)
+            If SelectedLabyModVersion Is Nothing Then
+                BtnLabyModClear.Visibility = Visibility.Collapsed
+                ImgLabyMod.Visibility = Visibility.Collapsed
+                LabLabyMod.Text = If(LabyModError, "可以添加")
+                LabLabyMod.Foreground = ColorGray4
+            Else
+                BtnLabyModClear.Visibility = Visibility.Visible
+                ImgLabyMod.Visibility = Visibility.Visible
+                LabLabyMod.Text = SelectedLabyModVersion
+                LabLabyMod.Foreground = ColorGray1
             End If
         End If
         'OptiFabric
@@ -604,7 +665,7 @@ Public Class PageVersionInstall
             If SelectedOptiFabric Is Nothing Then
                 BtnOptiFabricClear.Visibility = Visibility.Collapsed
                 ImgOptiFabric.Visibility = Visibility.Collapsed
-                LabOptiFabric.Text = If(OptiFabricError, "点击选择")
+                LabOptiFabric.Text = If(OptiFabricError, "可以添加")
                 LabOptiFabric.Foreground = ColorGray4
             Else
                 BtnOptiFabricClear.Visibility = Visibility.Visible
@@ -614,11 +675,6 @@ Public Class PageVersionInstall
             End If
         End If
         '主警告
-        If SelectedFabric IsNot Nothing OrElse SelectedQuilt IsNot Nothing Then
-            HintEdit.Visibility = Visibility.Visible
-        Else
-            HintEdit.Visibility = Visibility.Collapsed
-        End If
         If SelectedFabric IsNot Nothing AndAlso SelectedFabricApi Is Nothing Then
             HintFabricAPI.Visibility = Visibility.Visible
         Else
@@ -681,6 +737,9 @@ Public Class PageVersionInstall
         SelectedQuilt = Nothing
         SelectedQSL = Nothing
         SelectedOptiFabric = Nothing
+        SelectedLabyModCommitRef = Nothing
+        SelectedLabyModVersion = Nothing
+        SelectedLabyModChannel = Nothing
     End Sub
 
     '显示信息获取
@@ -704,6 +763,9 @@ Public Class PageVersionInstall
         End If
         If SelectedCleanroom IsNot Nothing Then
             Info += ", Cleanroom " & SelectedCleanroom.VersionName
+        End If
+        If SelectedLabyModVersion IsNot Nothing Then
+            Info += ", LabyMod " & SelectedLabyModVersion
         End If
         If SelectedLiteLoader IsNot Nothing Then
             Info += ", LiteLoader"
@@ -735,6 +797,8 @@ Public Class PageVersionInstall
             Return "pack://application:,,,/images/Blocks/Egg.png"
         ElseIf SelectedOptiFine IsNot Nothing Then
             Return "pack://application:,,,/images/Blocks/GrassPath.png"
+        ElseIf SelectedLabyModVersion IsNot Nothing Then
+            Return "pack://application:,,,/images/Blocks/LabyMod.png"
         Else
             Return SelectedMinecraftIcon
         End If
@@ -743,6 +807,69 @@ Public Class PageVersionInstall
     '版本名处理
     Private IsSelectNameEdited As Boolean = False
     Private IsSelectNameChanging As Boolean = False
+    
+    Private Shared ReadOnly RegexIsJarFile As New Regex("\.jar(\.disabled)?$")
+    
+    ''' <summary>
+    ''' 通过文件名关键字和 mod id 比如 <c>fabric</c> <c>api</c> 和 <c>fabric-api</c> 来获取给定版本 mods 目录中某个 mod 的 <see cref="LocalCompFile"/> 对象
+    ''' <br />
+    ''' <b>为了不浪费性能，关键字统一用小写</b> 
+    ''' </summary>
+    ''' <returns>
+    ''' 如果文件名包含主关键字，以及其他关键字中的任意一个，同时 mod id 一致，即认为匹配，返回对应的对象，若没有匹配的文件则返回空值。
+    ''' </returns>
+    Private Shared Function GetModLocalCompByKeywords(modId As String, mainKeyword As String, ParamArray keywords As String()) As LocalCompFile
+        If modId Is Nothing Then Return Nothing
+        Return GetModLocalCompByKeywords({ modId }, mainKeyword, keywords)
+    End Function
+    
+    Private Shared Function GetModLocalCompByKeywords(modIds As String(), mainKeyword As String, ParamArray keywords As String()) As LocalCompFile
+        Dim version = PageVersionLeft.Version
+        If Not version.Modable Then Return Nothing '跳过不可安装 mod 版本
+        Dim modFolder = $"{version.Path}mods"
+        If Not Directory.Exists(modFolder) Then Return Nothing '确保 mods 目录存在
+        For Each file In Directory.EnumerateFiles(modFolder, $"*{mainKeyword}*")
+            Dim lowerFilePath = file.ToLower() '统一转为小写
+            If Not RegexIsJarFile.IsMatch(lowerFilePath) Then Continue For '检查是否是 jar 文件
+            If keywords.Length > 0 And Not keywords.Any(Function(keyword) lowerFilePath.Contains(keyword)) Then Continue For '检查是否包含关键字
+            Dim localComp = New LocalCompFile(file)
+            localComp.Load()
+            If (modIds.Any(Function(modId) localComp.ModId = modId)) Then Return localComp
+        Next
+        Return Nothing
+    End Function
+    
+    Private _currentFabricApi As CompFile = Nothing '加载完成后直接调用以提高性能
+    Private _currentFabricApiPath As String = Nothing
+    Private Function GetCurrentFabricApi() '进入页面和联网加载时调用
+        Dim loaderOutput = DlFabricApiLoader.Output
+        If loaderOutput Is Nothing Then Return Nothing '确保联网信息已加载
+        Dim localComp = GetModLocalCompByKeywords({ "fabric-api", "fabric" }, "fabric", "api")
+        If localComp Is Nothing Then Return Nothing
+        Dim result = loaderOutput.FirstOrDefault(Function(comp) comp.Hash = localComp.ModrinthHash)
+        If result IsNot Nothing Then
+            _currentFabricApi = result
+            _currentFabricApiPath = localComp.Path
+        End If
+        Return result
+    End Function
+    
+    Private _currentQsl As CompFile = Nothing
+    Private _currentQslPath As String = Nothing
+    Private Function GetCurrentQsl()
+        Dim loaderOutput = DlQslLoader.Output
+        If loaderOutput Is Nothing Then Return Nothing
+        Dim localComp = GetModLocalCompByKeywords("quilted_fabric_api", "qsl", "qf", "fabric", "api")
+        '兼容测试版的文件名 没错这玩意测试版命名方式甚至与正式版不一样
+        If localComp Is Nothing Then localComp = GetModLocalCompByKeywords("quilted_fabric_api", "quilted-fabric-api")
+        If localComp Is Nothing Then Return Nothing
+        Dim result = loaderOutput.FirstOrDefault(Function(comp) comp.Hash = localComp.ModrinthHash)
+        If result IsNot Nothing Then
+            _currentQsl = result
+            _currentQslPath = localComp.Path
+        End If
+        Return result
+    End Function
 
     '当前信息获取
     Public Sub GetCurrentInfo()
@@ -754,26 +881,29 @@ Public Class PageVersionInstall
             SelectedLiteLoader = New DlLiteLoaderListEntry With {.Inherit = CurrentVersion.McName}
         End If
         If CurrentVersion.HasOptiFine Then
-            SelectedOptiFine = New DlOptiFineListEntry With {.NameDisplay = CurrentVersion.McName + " " + CurrentVersion.OptiFineVersion}
+            SelectedOptiFine = New DlOptiFineListEntry With {.NameDisplay = CurrentVersion.McName + " " + CurrentVersion.OptiFineVersion, .IsPreview = CurrentVersion.OptiFineVersion.ContainsF("pre"), .Inherit = CurrentVersion.McName, .NameVersion = CurrentVersion.McName & "-OptiFine_HD_U_" & CurrentVersion.OptiFineVersion}
         End If
-        If CurrentVersion.HasCleanroom Then
+        If CurrentVersion.HasCleanroom Then '此处有 BUG
             SelectedAPIName = "Cleanroom"
             SelectedCleanroom = New DlCleanroomListEntry(CurrentVersion.CleanroomVersion)
         ElseIf CurrentVersion.HasForge Then
             SelectedLoaderName = "Forge"
-            SelectedForge = New DlForgeVersionEntry(CurrentVersion.ForgeVersion, "", CurrentVersion.McName)
+            SelectedForge = New DlForgeVersionEntry(CurrentVersion.ForgeVersion, Nothing, CurrentVersion.McName) With {.Category = "installer", .ForgeType = DlForgelikeEntry.ForgelikeType.Forge, .Inherit = CurrentVersion.McName}
         ElseIf CurrentVersion.HasFabric Then
             SelectedLoaderName = "Fabric"
             SelectedFabric = CurrentVersion.FabricVersion
-            SelectedFabricApi = Nothing 'TODO: 检测已有 Fabric API
-        ElseIf CurrentVersion.HasNeoForge Then
+            SelectedFabricApi = GetCurrentFabricApi() '检测已有 Fabric API
+        ElseIf CurrentVersion.HasNeoForge Then '此处有 BUG
             SelectedLoaderName = "NeoForge"
-            SelectedNeoForge = New DlNeoForgeListEntry(CurrentVersion.NeoForgeVersion)
+            SelectedNeoForge = New DlNeoForgeListEntry(CurrentVersion.NeoForgeVersion) With {.ForgeType = DlForgelikeEntry.ForgelikeType.NeoForge, .Inherit = CurrentVersion.McName, .ApiName = If(CurrentVersion.McName = "1.20.1", "1.20.1-", "") & CurrentVersion.NeoForgeVersion}
+        ElseIf CurrentVersion.HasLabyMod Then
+            SelectedLoaderName = "LabyMod"
+            SelectedLabyModVersion = CurrentVersion.LabyModVersion
         ElseIf CurrentVersion.HasQuilt Then
             SelectedLoaderName = "Quilt"
             SelectedQuilt = CurrentVersion.QuiltVersion
-            SelectedQSL = Nothing 'TODO: 检测已有 QSL
-            SelectedFabricApi = Nothing 'TODO: 检测已有 Fabric API
+            SelectedQSL = GetCurrentQsl() '检测已有 QSL
+            SelectedFabricApi = GetCurrentFabricApi() '检测已有 Fabric API
         End If
         If (CurrentVersion.HasFabric OrElse CurrentVersion.HasQuilt) AndAlso CurrentVersion.HasOptiFine Then
             SelectedOptiFabric = Nothing 'TODO: 检测已有 OptiFabric
@@ -1439,8 +1569,14 @@ Public Class PageVersionInstall
                 If Not IsSuitableFabricApi(Version.DisplayName, SelectedMinecraftId) Then Continue For
                 PanFabricApi.Children.Add(FabricApiDownloadListItem(Version, AddressOf FabricApi_Selected))
             Next
+            '检测已经存在的 Fabric API
+            Dim currentInstalled = GetCurrentFabricApi()
+            If currentInstalled IsNot Nothing Then
+                SelectedFabricApi = currentInstalled
+                SelectedAPIName = "Fabric API"
+                SelectReload()
             '自动选择 Fabric API
-            If (Not AutoSelectedFabricApi AndAlso SelectedQuilt Is Nothing) OrElse (SelectedQuilt IsNot Nothing AndAlso LoadQSLGetError() Is "没有可用版本") Then
+            ElseIf (Not AutoSelectedFabricApi AndAlso SelectedQuilt Is Nothing) OrElse (SelectedQuilt IsNot Nothing AndAlso LoadQSLGetError() Is "没有可用版本") Then
                 AutoSelectedFabricApi = True
                 Log($"[Download] 已自动选择 Fabric API：{CType(PanFabricApi.Children(0), MyListItem).Title}")
                 FabricApi_Selected(PanFabricApi.Children(0), Nothing)
@@ -1458,8 +1594,8 @@ Public Class PageVersionInstall
         SelectReload()
     End Sub
     Private Sub FabricApi_Clear(sender As Object, e As MouseButtonEventArgs) Handles BtnFabricApiClear.MouseLeftButtonUp
-        SelectedFabricApi = Nothing
-        SelectedAPIName = Nothing
+        SelectedFabricApi = _currentFabricApi
+        SelectedAPIName = If(SelectedFabricApi Is Nothing, Nothing, "Fabric API")
         CardFabricApi.IsSwaped = True
         e.Handled = True
         SelectReload()
@@ -1604,8 +1740,14 @@ Public Class PageVersionInstall
                 If Not IsSuitableQSL(Version.GameVersions, SelectedMinecraftId) Then Continue For
                 PanQSL.Children.Add(QSLDownloadListItem(Version, AddressOf QSL_Selected))
             Next
+            '检测已经存在的 QSL
+            Dim currentInstalled = GetCurrentQsl()
+            If currentInstalled IsNot Nothing Then
+                SelectedQSL = currentInstalled
+                SelectedAPIName = "QFAPI / QSL"
+                SelectReload()
             '自动选择 QSL
-            If Not AutoSelectedQSL Then
+            ElseIf Not AutoSelectedQSL Then
                 AutoSelectedQSL = True
                 Log($"[Download] 已自动选择 QSL：{CType(PanQSL.Children(0), MyListItem).Title}")
                 QSL_Selected(PanQSL.Children(0), Nothing)
@@ -1623,13 +1765,107 @@ Public Class PageVersionInstall
         SelectReload()
     End Sub
     Private Sub QSL_Clear(sender As Object, e As MouseButtonEventArgs) Handles BtnQSLClear.MouseLeftButtonUp
-        SelectedQSL = Nothing
-        SelectedAPIName = Nothing
+        SelectedQSL = _currentQsl
+        SelectedAPIName = If(SelectedQSL Is Nothing, Nothing, "QFAPI / QSL")
         CardQSL.IsSwaped = True
         e.Handled = True
         SelectReload()
     End Sub
 
+#End Region
+
+#Region "LabyMod 列表"
+
+    ''' <summary>
+    ''' 获取 LabyMod 的加载异常信息。若正常则返回 Nothing。
+    ''' </summary>
+    Private Function LoadLabyModGetError() As String
+        If LoadLabyMod Is Nothing OrElse LoadLabyMod.State.LoadingState = MyLoading.MyLoadingState.Run Then Return "加载中……"
+        If LoadLabyMod.State.LoadingState = MyLoading.MyLoadingState.Error Then Return "获取版本列表失败：" & CType(LoadLabyMod.State, Object).Error.Message
+        For Each Version As JObject In DlLabyModListLoader.Output.Value("production")("minecraftVersions")
+            If Version("version").ToString = SelectedMinecraftId Then
+                If SelectedOptiFine IsNot Nothing Then Return "与 OptiFine 不兼容"
+                If SelectedLoaderName IsNot Nothing AndAlso SelectedLoaderName IsNot "LabyMod" Then Return $"与 {SelectedLoaderName} 不兼容"
+                Return Nothing
+            End If
+        Next
+        For Each Version As JObject In DlLabyModListLoader.Output.Value("snapshot")("minecraftVersions")
+            If Version("version").ToString = SelectedMinecraftId Then
+                If SelectedOptiFine IsNot Nothing Then Return "与 OptiFine 不兼容"
+                If SelectedLoaderName IsNot Nothing AndAlso SelectedLoaderName IsNot "LabyMod" Then Return $"与 {SelectedLoaderName} 不兼容"
+                Return Nothing
+            End If
+        Next
+        Return "不可用"
+    End Function
+
+    '限制展开
+    Private Sub CardLabyMod_PreviewSwap(sender As Object, e As RouteEventArgs) Handles CardLabyMod.PreviewSwap
+        If LoadLabyModGetError() IsNot Nothing Then e.Handled = True
+    End Sub
+
+    ''' <summary>
+    ''' 尝试重新可视化 LabyMod 版本列表。
+    ''' </summary>
+    Private Sub LabyMod_Loaded() Handles LoadLabyMod.StateChanged
+        Try
+            If LoadLabyMod.State.LoadingState = MyLoading.MyLoadingState.Run Then Exit Sub
+            '获取版本列表
+            Dim Versions As JObject = DlLabyModListLoader.Output.Value
+            If Versions("production") Is Nothing OrElse Versions("snapshot") Is Nothing Then Exit Sub
+            '可视化
+            Dim ProcessedVersions As New JArray
+            For Each Production As JObject In Versions("production")("minecraftVersions")
+                If Production("version").ToString = SelectedMinecraftId Then
+                    Dim ProductionVersion As New JObject
+                    ProductionVersion.Add("version", Versions("production")("labyModVersion"))
+                    ProductionVersion.Add("channel", "production")
+                    ProductionVersion.Add("commitReference", Versions("production")("commitReference"))
+                    ProcessedVersions.Add(ProductionVersion)
+                End If
+            Next
+            For Each Snapshot As JObject In Versions("snapshot")("minecraftVersions")
+                If Snapshot("version").ToString = SelectedMinecraftId Then
+                    Dim SnapshotVersion As New JObject
+                    SnapshotVersion.Add("version", Versions("production")("labyModVersion"))
+                    SnapshotVersion.Add("channel", "snapshot")
+                    SnapshotVersion.Add("commitReference", Versions("snapshot")("commitReference"))
+                    ProcessedVersions.Add(SnapshotVersion)
+                End If
+            Next
+            'MyMsgBox(If(ProcessedVersions.ToString, "Nothing"))
+            PanLabyMod.Children.Clear()
+            PanLabyMod.Tag = ProcessedVersions
+            CardLabyMod.SwapControl = PanLabyMod
+            CardLabyMod.InstallMethod = Sub(Stack As StackPanel)
+                                            For Each item As JObject In Stack.Tag
+                                                Stack.Children.Add(LabyModDownloadListItem(item, AddressOf FrmDownloadInstall.LabyMod_Selected))
+                                            Next
+                                        End Sub
+        Catch ex As Exception
+            Log(ex, "可视化 LabyMod 安装版本列表出错", LogLevel.Feedback)
+        End Try
+    End Sub
+
+    '选择与清除
+    Public Sub LabyMod_Selected(sender As MyListItem, e As EventArgs)
+        SelectedLabyModChannel = sender.Tag("channel").ToString
+        SelectedLabyModCommitRef = sender.Tag("commitReference").ToString
+        SelectedLabyModVersion = sender.Tag("version").ToString & If(SelectedLabyModChannel = "snapshot", " 快照版", " 稳定版")
+        SelectedLoaderName = "LabyMod"
+        CardLabyMod.IsSwaped = True
+        SelectReload()
+    End Sub
+    Private Sub LabyMod_Clear(sender As Object, e As MouseButtonEventArgs) Handles BtnLabyModClear.MouseLeftButtonUp
+        SelectedLabyModCommitRef = Nothing
+        SelectedLabyModVersion = Nothing
+        SelectedLabyModChannel = Nothing
+        SelectedLoaderName = Nothing
+        SelectedAPIName = Nothing
+        CardLabyMod.IsSwaped = True
+        e.Handled = True
+        SelectReload()
+    End Sub
 #End Region
 
 #Region "OptiFabric 列表"
@@ -1728,17 +1964,33 @@ Public Class PageVersionInstall
 
     Private Sub BtnSelectStart_Click() Handles BtnSelectStart.Click
         '确认版本隔离
-        If (SelectedForge IsNot Nothing OrElse SelectedNeoForge IsNot Nothing OrElse SelectedFabric IsNot Nothing OrElse SelectedQuilt IsNot Nothing) AndAlso
-           (Setup.Get("LaunchArgumentIndie") = 0 OrElse Setup.Get("LaunchArgumentIndie") = 2) Then
+        If SelectedLoaderName IsNot Nothing AndAlso
+           (Setup.Get("LaunchArgumentIndieV2") = 0 OrElse Setup.Get("LaunchArgumentIndieV2") = 2) Then
             If MyMsgBox("你尚未开启版本隔离，这会导致多个 MC 共用同一个 Mod 文件夹。" & vbCrLf &
                         "因此在切换 MC 版本时，MC 会因为读取到与当前版本不符的 Mod 而崩溃。" & vbCrLf &
                         "PCL 推荐你在开始下载前，在 设置 → 版本隔离 中开启版本隔离选项！", "版本隔离提示", "取消下载", "继续") = 1 Then
                 Exit Sub
             End If
         End If
+        If BtnSelectStart.Text = "开始重置" Then
+            If MyMsgBox("你正在重置当前版本。" & vbCrLf &
+                        "PCL 将会重新联网下载该版本所需的文件，并重新安装 Mod 加载器（如有）。" & vbCrLf &
+                        "此操作不会丢失你的存档、Mod、资源包等。", "重置此版本", "继续", "取消") = 2 Then
+                Exit Sub
+            End If
+        End If
+        '删除 LabyMod Neo 文件
+        If PageVersionLeft.Version.PathIndie <> PageVersionLeft.Version.Path AndAlso PageVersionLeft.Version.Version.HasLabyMod Then
+            Directory.Delete(PageVersionLeft.Version.PathIndie & "labymod-neo", True)
+        End If
         '备份版本核心文件
         CopyFile(PageVersionLeft.Version.Path + PageVersionLeft.Version.Name + ".json", PageVersionLeft.Version.Path + "PCLInstallBackups\" + PageVersionLeft.Version.Name + ".json")
-        CopyFile(PageVersionLeft.Version.Path + PageVersionLeft.Version.Name + ".jar", PageVersionLeft.Version.Path + "PCLInstallBackups\" + PageVersionLeft.Version.Name + ".jar")
+        If String.IsNullOrWhiteSpace(PageVersionLeft.Version.InheritVersion) Then
+            CopyFile(PageVersionLeft.Version.Path + PageVersionLeft.Version.Name + ".jar", PageVersionLeft.Version.Path + "PCLInstallBackups\" + PageVersionLeft.Version.Name + ".jar")
+        End If
+        '确认独立 API (如 Fabric API 等) 是否需要被修改
+        If SelectedFabricApi?.Equals(_currentFabricApi) Then SelectedFabricApi = Nothing
+        If SelectedQSL?.Equals(_currentQsl) Then SelectedQSL = Nothing
         '提交安装申请
         Dim Request As New McInstallRequest With {
             .TargetVersionName = PageVersionLeft.Version.Name,
@@ -1754,10 +2006,16 @@ Public Class PageVersionInstall
             .QuiltVersion = SelectedQuilt,
             .QSL = SelectedQSL,
             .OptiFabric = SelectedOptiFabric,
-            .LiteLoaderEntry = SelectedLiteLoader
+            .LiteLoaderEntry = SelectedLiteLoader,
+            .LabyModChannel = SelectedLabyModChannel,
+            .LabyModCommitRef = SelectedLabyModCommitRef
         }
         BtnSelectStart.IsEnabled = False
-        If Not McInstall(Request, "修改") Then Exit Sub
+        If Not McInstall(Request, BtnSelectStart.Text.AfterFirst("开始")) Then Exit Sub
+        '删除旧的独立 API 文件
+        If SelectedFabricApi IsNot Nothing And _currentFabricApiPath IsNot Nothing Then File.Delete(_currentFabricApiPath)
+        If SelectedQSL IsNot Nothing And _currentQslPath IsNot Nothing Then File.Delete(_currentQslPath)
+        '返回主页
         FrmMain.PageChange(New FormMain.PageStackData With {.Page = FormMain.PageType.Launch})
     End Sub
 

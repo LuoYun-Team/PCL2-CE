@@ -29,11 +29,6 @@
     End Sub
     Public Sub Reload()
         Try
-
-            '离线皮肤
-            CType(FindName("RadioSkinType" & Setup.Load("LaunchSkinType")), MyRadioBox).Checked = True
-            TextSkinID.Text = Setup.Get("LaunchSkinID")
-
             '启动参数
             TextArgumentTitle.Text = Setup.Get("LaunchArgumentTitle")
             TextArgumentInfo.Text = Setup.Get("LaunchArgumentInfo")
@@ -44,6 +39,7 @@
             TextArgumentWindowWidth.Text = Setup.Get("LaunchArgumentWindowWidth")
             TextArgumentWindowHeight.Text = Setup.Get("LaunchArgumentWindowHeight")
             CheckArgumentRam.Checked = Setup.Get("LaunchArgumentRam")
+            ComboMsAuthType.SelectedIndex = Setup.Get("LoginMsAuthType")
             CheckArgumentJavaTraversal.Checked = Setup.Get("LaunchArgumentJavaTraversal")
             RefreshJavaComboBox()
 
@@ -56,13 +52,14 @@
             TextAdvanceGame.Text = Setup.Get("LaunchAdvanceGame")
             TextAdvanceRun.Text = Setup.Get("LaunchAdvanceRun")
             CheckAdvanceRunWait.Checked = Setup.Get("LaunchAdvanceRunWait")
+            CheckAdvanceDisableRW.Checked = Setup.Get("LaunchAdvanceDisableRW")
             CheckAdvanceGraphicCard.Checked = Setup.Get("LaunchAdvanceGraphicCard")
             If IsArm64System Then
-                CheckAdvanceDisableJlw.Checked = True
-                CheckAdvanceDisableJlw.IsEnabled = False
-                CheckAdvanceDisableJlw.ToolTip = "在启动游戏时不使用 Java Wrapper 进行包装。&#xa;由于系统为 ARM64 架构，Java Wrapper 已被强制禁用。"
+                CheckAdvanceDisableJLW.Checked = True
+                CheckAdvanceDisableJLW.IsEnabled = False
+                CheckAdvanceDisableJLW.ToolTip = "在启动游戏时不使用 Java Wrapper 进行包装。&#xa;由于系统为 ARM64 架构，Java Wrapper 已被强制禁用。"
             Else
-                CheckAdvanceDisableJlw.Checked = Setup.Get("LaunchAdvanceDisableJLW")
+                CheckAdvanceDisableJLW.Checked = Setup.Get("LaunchAdvanceDisableJLW")
             End If
 
         Catch ex As NullReferenceException
@@ -88,14 +85,13 @@
             Setup.Reset("LaunchArgumentJavaTraversal")
             Setup.Reset("LaunchRamType")
             Setup.Reset("LaunchRamCustom")
-            Setup.Reset("LaunchSkinType")
-            Setup.Reset("LaunchSkinID")
             Setup.Reset("LaunchAdvanceJvm")
             Setup.Reset("LaunchAdvanceGame")
             Setup.Reset("LaunchAdvanceRun")
             Setup.Reset("LaunchAdvanceRunWait")
             Setup.Reset("LaunchAdvanceDisableJLW")
             Setup.Reset("LaunchAdvanceGraphicCard")
+            Setup.Reset("LoginMsAuthType")
             Setup.Reset("LaunchArgumentJavaAll")
             Setup.Reset("LaunchArgumentJavaSelect")
             JavaSearchLoader.Start(IsForceRestart:=True)
@@ -110,86 +106,53 @@
     End Sub
 
     '将控件改变路由到设置改变
-    Private Shared Sub RadioBoxChange(sender As MyRadioBox, e As Object) Handles RadioSkinType0.Check, RadioSkinType1.Check, RadioSkinType2.Check, RadioSkinType3.Check, RadioSkinType4.Check, RadioRamType0.Check, RadioRamType1.Check
+    Private Shared Sub RadioBoxChange(sender As MyRadioBox, e As Object) Handles RadioRamType0.Check, RadioRamType1.Check
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag.ToString.Split("/")(0), Val(sender.Tag.ToString.Split("/")(1)))
     End Sub
-    Private Shared Sub TextBoxChange(sender As MyTextBox, e As Object) Handles TextSkinID.ValidatedTextChanged, TextArgumentWindowHeight.ValidatedTextChanged, TextArgumentWindowWidth.ValidatedTextChanged, TextArgumentInfo.ValidatedTextChanged, TextAdvanceGame.ValidatedTextChanged, TextAdvanceJvm.ValidatedTextChanged, TextArgumentTitle.ValidatedTextChanged, TextAdvanceRun.ValidatedTextChanged
+    Private Shared Sub TextBoxChange(sender As MyTextBox, e As Object) Handles TextArgumentWindowHeight.ValidatedTextChanged, TextArgumentWindowWidth.ValidatedTextChanged, TextArgumentInfo.ValidatedTextChanged, TextAdvanceGame.ValidatedTextChanged, TextAdvanceJvm.ValidatedTextChanged, TextArgumentTitle.ValidatedTextChanged, TextAdvanceRun.ValidatedTextChanged
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.Text)
     End Sub
     Private Shared Sub SliderChange(sender As MySlider, e As Object) Handles SliderRamCustom.Change
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.Value)
     End Sub
-    Private Shared Sub ComboChange(sender As MyComboBox, e As Object) Handles ComboArgumentIndieV2.SelectionChanged, ComboArgumentVisibie.SelectionChanged, ComboArgumentWindowType.SelectionChanged, ComboArgumentPriority.SelectionChanged
+    Private Shared Sub ComboChange(sender As MyComboBox, e As Object) Handles ComboArgumentIndieV2.SelectionChanged, ComboArgumentVisibie.SelectionChanged, ComboArgumentWindowType.SelectionChanged, ComboArgumentPriority.SelectionChanged, ComboMsAuthType.SelectionChanged
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.SelectedIndex)
     End Sub
-    Private Shared Sub CheckBoxChange(sender As MyCheckBox, e As Object) Handles CheckAdvanceRunWait.Change, CheckArgumentRam.Change, CheckArgumentJavaTraversal.Change, CheckAdvanceDisableJLW.Change, CheckAdvanceGraphicCard.Change
+    Private Shared Sub CheckBoxChange(sender As MyCheckBox, e As Object) Handles CheckAdvanceRunWait.Change, CheckArgumentRam.Change, CheckArgumentJavaTraversal.Change, CheckAdvanceDisableJLW.Change, CheckAdvanceGraphicCard.Change, CheckAdvanceDisableRW.Change
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.Checked)
     End Sub
 
-#Region "离线皮肤"
-
-    Private Sub BtnSkinChange_Click(sender As Object, e As EventArgs) Handles BtnSkinChange.Click
-        Dim SkinInfo As McSkinInfo = McSkinSelect()
-        If Not SkinInfo.IsVaild Then Exit Sub
-        ChangeSkin(SkinInfo)
-    End Sub
-    Private Sub RadioSkinType3_Check(sender As Object, e As RouteEventArgs) Handles RadioSkinType4.PreviewCheck
-        If Not (AniControlEnabled = 0 AndAlso e.RaiseByMouse) Then Exit Sub
-        '已有图片则不再选择
-        If File.Exists(PathAppdata & "CustomSkin.png") Then Exit Sub
-        '没有图片则要求选择
-        Dim SkinInfo As McSkinInfo = McSkinSelect()
-        If Not SkinInfo.IsVaild Then
-            e.Handled = True
-            Exit Sub
-        End If
-        '正式改变
-        If Not ChangeSkin(SkinInfo) Then e.Handled = True
-    End Sub
-    '返回是否成功改变
-    Private Function ChangeSkin(SkinInfo As McSkinInfo) As Boolean
-        Try
-            '拷贝文件
-            File.Delete(PathAppdata & "CustomSkin.png")
-            CopyFile(SkinInfo.LocalFile, PathAppdata & "CustomSkin.png")
-            '将单层皮肤扩展到双层
-            Dim Bitmap As New MyBitmap(PathAppdata & "CustomSkin.png")
-            If Bitmap.Pic.Width = 64 AndAlso Bitmap.Pic.Height = 32 Then
-                Dim Img As System.Drawing.Image = Bitmap
-                Dim NewBitmap As New System.Drawing.Bitmap(64, 64)
-                Using g As System.Drawing.Graphics = System.Drawing.Graphics.FromImage(NewBitmap)
-                    g.DrawImageUnscaled(Img, New System.Drawing.Point(0, 0))
-                End Using
-                File.Delete(PathAppdata & "CustomSkin.png")
-                NewBitmap.Save(PathAppdata & "CustomSkin.png")
-            End If
-            '更新设置
-            Setup.Set("LaunchSkinSlim", SkinInfo.IsSlim)
-            ChangeSkin = True
-        Catch ex As Exception
-            Log(ex, "改变离线皮肤失败", LogLevel.Msgbox)
-            ChangeSkin = False
-        Finally
-            '设置当前显示
-            PageLaunchLeft.SkinLegacy.Start(IsForceRestart:=True)
-        End Try
-    End Function
-    Private Sub BtnSkinDelete_Click(sender As Object, e As EventArgs) Handles BtnSkinDelete.Click
-        Try
-            File.Delete(PathAppdata & "CustomSkin.png")
-            RadioSkinType0.SetChecked(True, True)
-            Hint("离线皮肤已清空！", HintType.Finish)
-        Catch ex As Exception
-            Log(ex, "清空离线皮肤失败", LogLevel.Msgbox)
-        End Try
-    End Sub
+#Region "下载正版皮肤"
     Private Sub BtnSkinSave_Click(sender As Object, e As EventArgs) Handles BtnSkinSave.Click
-        MySkin.Save(PageLaunchLeft.SkinLegacy)
+        Dim ID As String = TextSkinID.Text
+        Hint("正在获取皮肤...")
+        RunInNewThread(Sub()
+                           Try
+                               If ID.Count < 3 Then
+                                   Hint("这不是一个有效的 ID...")
+                               Else
+                                   Dim Result As String = McLoginMojangUuid(ID, True)
+                                   Result = McSkinGetAddress(Result, "Mojang")
+                                   Result = McSkinDownload(Result)
+                                   RunInUi(Sub()
+                                               Dim Path As String = SelectSaveFile("保存皮肤", ID & ".png", "皮肤图片文件(*.png)|*.png")
+                                               CopyFile(Result, Path)
+                                               Hint($"玩家 {ID} 的皮肤已保存！", HintType.Finish)
+                                           End Sub)
+                               End If
+                           Catch ex As Exception
+                               If GetExceptionSummary(ex).Contains("429") Then
+                                   Hint("获取皮肤太过频繁，请 5 分钟之后再试！", HintType.Critical)
+                                   Log("获取正版皮肤失败（" & ID & "）：获取皮肤太过频繁，请 5 分钟后再试！")
+                               Else
+                                   Log(ex, "获取正版皮肤失败（" & ID & "）")
+                               End If
+                           End Try
+                       End Sub)
     End Sub
     Private Sub BtnSkinCache_Click(sender As Object, e As EventArgs) Handles BtnSkinCache.Click
         MySkin.RefreshCache(Nothing)
     End Sub
-
 #End Region
 
 #Region "游戏内存"

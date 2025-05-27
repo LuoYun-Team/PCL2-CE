@@ -22,11 +22,13 @@
         '下载
         SliderDownloadThread.Value = Setup.Get("ToolDownloadThread")
         SliderDownloadSpeed.Value = Setup.Get("ToolDownloadSpeed")
+        ComboDownloadSource.SelectedIndex = Setup.Get("ToolDownloadSource")
         ComboDownloadVersion.SelectedIndex = Setup.Get("ToolDownloadVersion")
+        CheckDownloadAutoSelectVersion.Checked = Setup.Get("ToolDownloadAutoSelectVersion")
 
         'Mod 与整合包
         ComboDownloadTranslateV2.SelectedIndex = Setup.Get("ToolDownloadTranslateV2")
-        'ComboDownloadMod.SelectedIndex = Setup.Get("ToolDownloadMod")
+        ComboDownloadMod.SelectedIndex = Setup.Get("ToolDownloadMod")
         ComboModLocalNameStyle.SelectedIndex = Setup.Get("ToolModLocalNameStyle")
         CheckDownloadIgnoreQuilt.Checked = Setup.Get("ToolDownloadIgnoreQuilt")
         CheckDownloadClipboard.Checked = Setup.Get("ToolDownloadClipboard")
@@ -50,14 +52,15 @@
             ComboSystemUpdateBranch.IsEnabled = False
         End If
         ComboSystemActivity.SelectedIndex = Setup.Get("SystemSystemActivity")
-        ComboSystemServer.SelectedIndex = Setup.Get("SystemSystemServer")
         TextSystemCache.Text = Setup.Get("SystemSystemCache")
         CheckSystemDisableHardwareAcceleration.Checked = Setup.Get("SystemDisableHardwareAcceleration")
         SliderAniFPS.Value = Setup.Get("UiAniFPS")
+        CheckSystemTelemetry.Checked = Setup.Get("SystemTelemetry")
 
         '网络
         TextSystemHttpProxy.Text = Setup.Get("SystemHttpProxy")
         CheckDownloadCert.Checked = Setup.Get("ToolDownloadCert")
+        CheckUseDefaultProxy.Checked = Setup.Get("SystemUseDefaultProxy")
 
         '调试选项
         CheckDebugMode.Checked = Setup.Get("SystemDebugMode")
@@ -72,11 +75,13 @@
         Try
             Setup.Reset("ToolDownloadThread")
             Setup.Reset("ToolDownloadSpeed")
+            Setup.Reset("ToolDownloadSource")
             Setup.Reset("ToolDownloadVersion")
             Setup.Reset("ToolDownloadTranslateV2")
             Setup.Reset("ToolDownloadIgnoreQuilt")
             Setup.Reset("ToolDownloadClipboard")
             Setup.Reset("ToolDownloadMod")
+            Setup.Reset("ToolDownloadAutoSelectVersion")
             Setup.Reset("ToolModLocalNameStyle")
             Setup.Reset("ToolUpdateRelease")
             Setup.Reset("ToolUpdateSnapshot")
@@ -87,11 +92,11 @@
             Setup.Reset("SystemDebugSkipCopy")
             Setup.Reset("SystemSystemCache")
             Setup.Reset("SystemSystemUpdate")
-            Setup.Reset("SystemSystemServer")
             Setup.Reset("SystemSystemActivity")
             Setup.Reset("SystemDisableHardwareAcceleration")
             Setup.Reset("SystemHttpProxy")
             Setup.Reset("ToolDownloadCert")
+            Setup.Reset("SystemUseDefaultProxy")
             Setup.Reset("UiAniFPS")
 
             Log("[Setup] 已初始化启动器页设置")
@@ -104,13 +109,13 @@
     End Sub
 
     '将控件改变路由到设置改变
-    Private Shared Sub CheckBoxChange(sender As MyCheckBox, e As Object) Handles CheckDebugMode.Change, CheckDebugDelay.Change, CheckDebugSkipCopy.Change, CheckUpdateRelease.Change, CheckUpdateSnapshot.Change, CheckHelpChinese.Change, CheckDownloadIgnoreQuilt.Change, CheckDownloadCert.Change, CheckDownloadClipboard.Change, CheckSystemDisableHardwareAcceleration.Change
+    Private Shared Sub CheckBoxChange(sender As MyCheckBox, e As Object) Handles CheckDebugMode.Change, CheckDebugDelay.Change, CheckDebugSkipCopy.Change, CheckUpdateRelease.Change, CheckUpdateSnapshot.Change, CheckHelpChinese.Change, CheckDownloadIgnoreQuilt.Change, CheckDownloadCert.Change, CheckDownloadClipboard.Change, CheckSystemDisableHardwareAcceleration.Change, CheckUseDefaultProxy.Change, CheckDownloadAutoSelectVersion.Change, CheckSystemTelemetry.Change
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.Checked)
     End Sub
     Private Shared Sub SliderChange(sender As MySlider, e As Object) Handles SliderDebugAnim.Change, SliderDownloadThread.Change, SliderDownloadSpeed.Change, SliderAniFPS.Change
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.Value)
     End Sub
-    Private Shared Sub ComboChange(sender As MyComboBox, e As Object) Handles ComboDownloadVersion.SelectionChanged, ComboModLocalNameStyle.SelectionChanged, ComboDownloadTranslateV2.SelectionChanged, ComboSystemUpdate.SelectionChanged, ComboSystemUpdateBranch.SelectionChanged, ComboSystemActivity.SelectionChanged, ComboSystemServer.SelectionChanged
+    Private Shared Sub ComboChange(sender As MyComboBox, e As Object) Handles ComboDownloadVersion.SelectionChanged, ComboModLocalNameStyle.SelectionChanged, ComboDownloadTranslateV2.SelectionChanged, ComboSystemUpdate.SelectionChanged, ComboSystemActivity.SelectionChanged, ComboDownloadSource.SelectionChanged, ComboSystemUpdateBranch.SelectionChanged, ComboDownloadMod.SelectionChanged
         If AniControlEnabled = 0 Then Setup.Set(sender.Tag, sender.SelectedIndex)
     End Sub
     Private Shared Sub TextBoxChange(sender As MyTextBox, e As Object) Handles TextSystemCache.ValidatedTextChanged, TextSystemHttpProxy.TextChanged
@@ -200,22 +205,22 @@
     Private Sub BtnSystemUpdate_Click(sender As Object, e As EventArgs) Handles BtnSystemUpdate.Click
         UpdateCheckByButton()
     End Sub
+    Private Sub BtnSystemMirrorChyanKey_Click(sender As Object, e As EventArgs) Handles BtnSystemMirrorChyanKey.Click
+        Dim ret = MyMsgBoxInput("设置 Mirror 酱 CDK", $"Mirror 酱(https://mirrorchyan.com/)是一个第三方应用分发平台{vbCrLf}如果你购买了他们的服务，可以让 PCL CE 使用他们的高速下载源下载版本更新，同时也可以减轻社区更新服务器的压力……")
+        If String.IsNullOrWhiteSpace(ret) Then Exit Sub
+        Setup.Set("SystemMirrorChyanKey", ret)
+        Hint("设置 Mirror 酱 CDK 成功！", HintType.Finish)
+    End Sub
+    Private Sub BtnSystemMirrorChyanGetKey_Click(sender As Object, e As EventArgs) Handles BtnSystemMirrorChyanGetKey.Click
+        OpenWebsite("https://mirrorchyan.com/")
+    End Sub
     ''' <summary>
     ''' 启动器是否已经是最新版？
     ''' 若返回 Nothing，则代表无更新缓存文件或出错。
     ''' </summary>
     Public Shared Function IsLauncherNewest() As Boolean?
         Try
-            '确认服务器公告是否正常
-            Dim ServerContent As String = ReadFile(PathTemp & "Cache\Notice.cfg")
-            If ServerContent.Split("|").Count < 3 Then Return Nothing
-            '确认是否为最新
-#If RELEASE Then
-            Dim NewVersionCode As Integer = ServerContent.Split("|")(2)
-#Else
-            Dim NewVersionCode As Integer = ServerContent.Split("|")(1)
-#End If
-            Return NewVersionCode <= VersionCode
+            Return IsVerisonLatest()
         Catch ex As Exception
             Log(ex, "确认启动器更新失败", LogLevel.Feedback)
             Return Nothing
@@ -225,10 +230,19 @@
 #Region "导出 / 导入设置"
 
     Private Sub BtnSystemSettingExp_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnSystemSettingExp.Click
-        Hint("该功能尚在开发中！")
+        Dim savePath As String = SelectSaveFile("选择保存位置", "PCL 全局配置.json", "PCL 配置文件(*.json)|*.json", Path).Replace("/", "\")
+        If savePath = "" Then Exit Sub
+        File.Copy(PathAppdataConfig & "Config.json", savePath, True)
+        Hint("配置导出成功！", HintType.Finish)
+        OpenExplorer(savePath)
     End Sub
     Private Sub BtnSystemSettingImp_Click(sender As Object, e As MouseButtonEventArgs) Handles BtnSystemSettingImp.Click
-        Hint("该功能尚在开发中！")
+        Dim sourcePath As String = SelectFile("PCL 配置文件(*.json)|*.json", "选择配置文件")
+        If sourcePath = "" Then Exit Sub
+        File.Copy(sourcePath, PathAppdataConfig & "Config.json", True)
+        MyMsgBox("配置导入成功！请重启 PCL 以应用配置……", Button1:="重启", ForceWait:=True)
+        Process.Start(New ProcessStartInfo(PathWithName))
+        FormMain.EndProgramForce(ProcessReturnValues.Success)
     End Sub
 
 #End Region

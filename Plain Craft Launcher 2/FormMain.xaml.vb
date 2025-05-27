@@ -12,6 +12,21 @@ Public Class FormMain
         Dim FeatureList As New List(Of KeyValuePair(Of Integer, String))
         '统计更新日志条目
 #If RELEASE Then
+        If LastVersion < 366 Then '2.10.6
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(4, "迁移配置文件，不再使用注册表，使用 AES 加密部分信息"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(4, "改进了 SMTC 获取信息的方式"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(3, "尝试改进了实时日志的性能"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "修复 修改版本界面可能会因不支持的 Mod 加载器报错"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "针对不兼容的系统环境给出环境警告"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "修复 版本修改的加载器选择可能不正确"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(1, "部分字体标题栏 CE 显示不完整"))
+        End If
+            If LastVersion < 357 Then 'Release 2.10.0
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(5, "新增：下载资源包、光影包、数据包"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(3, "新增：允许设置文件下载源"))
+            FeatureCount += 9
+            BugCount += 26
+        End If
         If LastVersion < 365 Then '2.10.5
             FeatureList.Add(New KeyValuePair(Of Integer, String)(5, "支持导出资源列表信息"))
             FeatureList.Add(New KeyValuePair(Of Integer, String)(3, "修复了深色模式下部分 UI 表现错误的问题"))
@@ -106,6 +121,20 @@ Public Class FormMain
         '3：BUG+ IMP* FEAT-
         '2：BUG* IMP-
         '1：BUG-
+        If LastVersion < 367 Then '2.10.7
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(3, "支持 Mod 列表多选收藏"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "修复 资源管理查看存档崩溃"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "更新 UVMC 服务器地址"))
+        End If
+        If LastVersion < 366 Then '2.10.6
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(4, "迁移配置文件，不再使用注册表，使用 AES 加密部分信息"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(4, "改进了 SMTC 获取信息的方式"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(3, "尝试改进了实时日志的性能"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "修复 修改版本界面可能会因不支持的 Mod 加载器报错"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "针对不兼容的系统环境给出环境警告"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(2, "修复 版本修改的加载器选择可能不正确"))
+            FeatureList.Add(New KeyValuePair(Of Integer, String)(1, "部分字体标题栏 CE 显示不完整"))
+        End If
         If LastVersion < 365 Then '2.10.5 365
             FeatureList.Add(New KeyValuePair(Of Integer, String)(5, "支持导出资源列表信息"))
             FeatureList.Add(New KeyValuePair(Of Integer, String)(3, "修复了深色模式下部分 UI 表现错误的问题"))
@@ -233,7 +262,7 @@ Public Class FormMain
         '输出更新日志
         RunInNewThread(
         Sub()
-            If MyMsgBox(Content, "PCL CE 已更新至 " & VersionBaseName & If(Not VersionBranchName = "Slow Ring", "." + VersionCodeString, ""), "确定", "完整更新日志") = 2 Then
+            If MyMsgBox(Content, "PCL CE 已更新至 " & VersionBranchName & " " & VersionBaseName, "确定", "完整更新日志") = 2 Then
                 OpenWebsite("https://github.com/PCL-Community/PCL2-CE/releases")
             End If
         End Sub, "UpdateLog Output")
@@ -392,11 +421,27 @@ Public Class FormMain
                         EndProgram(False)
                 End Select
             End If
+            '遥测提示
+            If Setup.Get("SystemTelemetry") = Nothing Then
+                Select Case MyMsgBox("这是一项与 Steam 硬件调查类似的计划，参与调查可以帮助我们更好的进行规划和开发，且我们会不定期发布该调查的统计结果。" & vbCrLf &
+                                     "如果选择参与调查，我们将会收集以下信息：" & vbCrLf &
+                                     "启动器版本信息与识别码，使用的 Windows 系统版本与架构，已安装的物理内存大小，NAT 与 IPv6 支持情况，是否使用过官方版 PCL、HMCL 或 BakaXL" & vbCrLf & vbCrLf &
+                                     "这些数据均不与你关联，我们也绝不会向第三方出售数据。" & vbCrLf &
+                                     "如果不想参与该调查，可以选择拒绝，不会影响其他功能使用。" & vbCrLf &
+                                     "你可以随时在启动器设置中调整这项设置。", "参与 PCL CE 软硬件调查", "同意", "拒绝")
+                    Case 1
+                        Setup.Set("SystemTelemetry", True)
+                    Case 2
+                        Setup.Set("SystemTelemetry", False)
+                End Select
+            ElseIf Setup.Get("SystemTelemetry") Then
+                RunInNewThread(Sub() SendTelemetry())
+            End If
             '启动加载器池
             Try
                 JavaListInit() '延后到同意协议后再执行，避免在初次启动时进行进程操作
-                Thread.Sleep(200)
-                DlClientListMojangLoader.Start(1)
+                Thread.Sleep(100)
+                DlClientListMojangLoader.Start(1) 'PCL 会同时根据这里的加载结果决定是否使用官方源进行下载
                 RunCountSub()
                 ServerLoader.Start(1)
                 RunInNewThread(AddressOf TryClearTaskTemp, "TryClearTaskTemp", ThreadPriority.BelowNormal)
@@ -405,10 +450,12 @@ Public Class FormMain
             End Try
             '清理自动更新文件
             Try
-                If File.Exists(Path & "PCL\Plain Craft Launcher 2.exe") Then File.Delete(Path & "PCL\Plain Craft Launcher 2.exe")
+                If File.Exists(Path & "PCL\Plain Craft Launcher Community Edition.exe") Then File.Delete(Path & "PCL\Plain Craft Launcher Community Edition.exe")
             Catch ex As Exception
                 Log(ex, "清理自动更新文件失败")
             End Try
+            GetCoR() '获取区域限制状态
+            GetSystemInfo()
         End Sub, "Start Loader", ThreadPriority.Lowest)
         '剪贴板识别
         If Setup.Get("ToolDownloadClipboard") Then RunInNewThread(Sub() CompClipboard.ClipboardListening(), "Clipboard Listener", ThreadPriority.Lowest)
@@ -485,21 +532,17 @@ Public Class FormMain
             Setup.Set("UiHiddenOtherHelp", False)
             Log("[Start] 已解除帮助页面的隐藏")
         End If
-        '单向迁移微软登录结果（#4836）
-        If Not Setup.Get("CacheMsV2Migrated") Then
-            Setup.Set("CacheMsV2Migrated", True)
-            Setup.Set("CacheMsV2OAuthRefresh", Setup.Get("CacheMsOAuthRefresh"))
-            Setup.Set("CacheMsV2Access", Setup.Get("CacheMsAccess"))
-            Setup.Set("CacheMsV2ProfileJson", Setup.Get("CacheMsProfileJson"))
-            Setup.Set("CacheMsV2Uuid", Setup.Get("CacheMsUuid"))
-            Setup.Set("CacheMsV2Name", Setup.Get("CacheMsName"))
-            Log("[Start] 已从老版本迁移微软登录结果")
+        '迁移旧版用户档案
+        If LastVersionCode <= 368 Then
+            RunInNewThread(Sub() MigrateOldProfile())
         End If
         'Mod 命名设置迁移
         If Not Setup.IsUnset("ToolDownloadTranslate") AndAlso Setup.IsUnset("ToolDownloadTranslateV2") Then
             Setup.Set("ToolDownloadTranslateV2", Setup.Get("ToolDownloadTranslate") + 1)
             Log("[Start] 已从老版本迁移 Mod 命名设置")
         End If
+        '社区版提示
+        If Not Setup.Get("UiLauncherCEHint") Then ShowCEAnnounce(True)
         '输出更新日志
         If LastVersionCode <= 0 Then Exit Sub
         If LowerVersionCode >= VersionCode Then Exit Sub
@@ -552,6 +595,8 @@ Public Class FormMain
         End If
         '关闭 EasyTier 联机
         If ModLink.IsETRunning Then ModLink.ExitEasyTier()
+        '存储上次使用的档案编号
+        SaveProfile()
         '关闭
         RunInUiWait(
         Sub()
@@ -636,6 +681,15 @@ Public Class FormMain
         PanMain.Width = PanForm.Width
         PanMain.Height = Math.Max(0, PanForm.Height - PanTitle.ActualHeight)
         If WindowState = WindowState.Maximized Then WindowState = WindowState.Normal '修复 #1938
+    End Sub
+
+    '标题栏改变大小
+    Private Sub PanTitle_SizeChanged() Handles PanTitleLeft.SizeChanged
+        If PanTitleMain.ColumnDefinitions(0).ActualWidth - 30 <= 0 Then
+            PanTitleLeft.ColumnDefinitions(0).MaxWidth = 0
+        Else
+            PanTitleLeft.ColumnDefinitions(0).MaxWidth = PanTitleMain.ColumnDefinitions(0).ActualWidth - 30
+        End If
     End Sub
 
     '最小化
@@ -757,39 +811,14 @@ Public Class FormMain
                             Hint($"输入的 Authlib 验证服务器不符合网址格式（{AuthlibServer}）！", HintType.Critical)
                             Exit Sub
                         End If
-                        Dim TargetVersion = If(PageCurrent = PageType.VersionSetup, PageVersionLeft.Version, McVersionCurrent)
-                        If TargetVersion Is Nothing Then
-                            Hint("请先下载游戏，再设置第三方登录！", HintType.Critical)
-                            Exit Sub
-                        End If
-                        If AuthlibServer = "https://littleskin.cn/api/yggdrasil" Then
-                            'LittleSkin
-                            If MyMsgBox($"是否要在版本 {TargetVersion.Name} 中开启 LittleSkin 登录？" & vbCrLf &
-                                        "你可以在 版本设置 → 设置 → 服务器选项 中修改登录方式。", "第三方登录开启确认", "确定", "取消") = 2 Then
-                                Exit Sub
-                            End If
-                            Setup.Set("VersionServerLogin", 4, Version:=TargetVersion)
-                            Setup.Set("VersionServerAuthServer", "https://littleskin.cn/api/yggdrasil", Version:=TargetVersion)
-                            Setup.Set("VersionServerAuthRegister", "https://littleskin.cn/auth/register", Version:=TargetVersion)
-                            Setup.Set("VersionServerAuthName", "LittleSkin 登录", Version:=TargetVersion)
-                        Else
-                            '第三方 Authlib 服务器
-                            If MyMsgBox($"是否要在版本 {TargetVersion.Name} 中开启第三方登录？" & vbCrLf &
-                                        $"登录服务器：{AuthlibServer}" & vbCrLf & vbCrLf &
-                                        "你可以在 版本设置 → 设置 → 服务器选项 中修改登录方式。", "第三方登录开启确认", "确定", "取消") = 2 Then
-                                Exit Sub
-                            End If
-                            Setup.Set("VersionServerLogin", 4, Version:=TargetVersion)
-                            Setup.Set("VersionServerAuthServer", AuthlibServer, Version:=TargetVersion)
-                            Setup.Set("VersionServerAuthRegister", AuthlibServer.Replace("api/yggdrasil", "auth/register"), Version:=TargetVersion)
-                            Setup.Set("VersionServerAuthName", "", Version:=TargetVersion)
-                        End If
+                        If MyMsgBox($"是否要创建新的第三方验证档案？{vbCrLf}验证服务器地址：{AuthlibServer}", "创建新的第三方验证档案", "确定", "取消") = 2 Then Exit Sub
+                        RunInUi(Sub()
+                                    PageLoginAuth.DraggedAuthServer = AuthlibServer
+                                    FrmLaunchLeft.RefreshPage(True, McLoginType.Auth)
+                                End Sub)
                         If PageCurrent = PageType.VersionSetup AndAlso PageCurrentSub = PageSubType.VersionSetup Then
                             '正在服务器选项页，需要刷新设置项显示
                             FrmVersionSetup.Reload()
-                        ElseIf PageCurrent = PageType.Launch Then
-                            '正在主页，需要刷新左边栏
-                            FrmLaunchLeft.RefreshPage(True, False)
                         End If
                     ElseIf Str.StartsWithF("file:///") Then
                         '文件拖拽（例如从浏览器下载窗口拖入）
@@ -838,12 +867,12 @@ Public Class FormMain
                     End If
                 Next
             End If
-            '自定义主页
+            '主页
             Dim Extension As String = FilePath.AfterLast(".").ToLower
             If Extension = "xaml" Then
-                Log("[System] 文件后缀为 XAML，作为自定义主页加载")
+                Log("[System] 文件后缀为 XAML，作为主页加载")
                 If File.Exists(Path & "PCL\Custom.xaml") Then
-                    If MyMsgBox("已存在一个自定义主页文件，是否要将它覆盖？", "覆盖确认", "覆盖", "取消") = 2 Then
+                    If MyMsgBox("已存在一个主页文件，是否要将它覆盖？", "覆盖确认", "覆盖", "取消") = 2 Then
                         Exit Sub
                     End If
                 End If
@@ -1070,11 +1099,13 @@ Public Class FormMain
         DownloadFabric = 8
         DownloadQuilt = 10
         DownloadLiteLoader = 9
+        DownloadLabyMod = 20
         DownloadMod = 11
         DownloadPack = 12
-        DownloadResourcePack = 13
-        DownloadShader = 14
-        DownloadCompFavorites = 15
+        DownloadDataPack = 13
+        DownloadResourcePack = 14
+        DownloadShader = 15
+        DownloadCompFavorites = 17
         SetupLaunch = 0
         SetupUI = 1
         SetupSystem = 2
@@ -1115,22 +1146,9 @@ Public Class FormMain
             Case PageType.VersionSetup
                 Return "版本设置 - " & If(PageVersionLeft.Version Is Nothing, "未知版本", PageVersionLeft.Version.Name)
             Case PageType.CompDetail
-                Dim Project As CompProject = Stack.Additional(0)
-                Select Case Project.Type
-                    Case CompType.Mod
-                        Return "Mod 下载 - " & Project.TranslatedName
-                    Case CompType.ModPack
-                        Return "整合包下载 - " & Project.TranslatedName
-                    Case CompType.ResourcePack
-                        Return "资源包下载 - " & Project.TranslatedName
-                    Case CompType.Shader
-                        Return "光影包下载 - " & Project.TranslatedName
-                    Case Else
-                        Return "资源下载 - " & Project.TranslatedName
-                End Select
+                Return "资源下载 - " & CType(Stack.Additional(0), CompProject).TranslatedName
             Case PageType.HelpDetail
-                Dim Entry As HelpEntry = Stack.Additional(0)
-                Return Entry.Title
+                Return CType(Stack.Additional(0), HelpEntry).Title
             Case Else
                 Return ""
         End Select

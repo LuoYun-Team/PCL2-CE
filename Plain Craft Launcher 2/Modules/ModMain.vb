@@ -411,10 +411,12 @@ EndHint:
     Public FrmDownloadCleanroom As PageDownloadCleanroom
     Public FrmDownloadFabric As PageDownloadFabric
     Public FrmDownloadQuilt As PageDownloadQuilt
+    Public FrmDownloadLabyMod As PageDownloadLabyMod
     Public FrmDownloadMod As PageDownloadMod
     Public FrmDownloadPack As PageDownloadPack
-    Public FrmDownloadResourcePack As PageDownloadResourcePack
+    Public FrmDownloadDataPack As PageDownloadDataPack
     Public FrmDownloadShader As PageDownloadShader
+    Public FrmDownloadResourcePack As PageDownloadResourcePack
     Public FrmDownloadCompFavorites As PageDownloadCompFavorites
 
     '设置页面声明
@@ -433,13 +435,11 @@ EndHint:
     Public FrmOtherVote As PageOtherVote
 
     '登录页面声明
-    Public FrmLoginLegacy As PageLoginLegacy
-    Public FrmLoginNide As PageLoginNide
-    Public FrmLoginNideSkin As PageLoginNideSkin
     Public FrmLoginAuth As PageLoginAuth
-    Public FrmLoginAuthSkin As PageLoginAuthSkin
     Public FrmLoginMs As PageLoginMs
-    Public FrmLoginMsSkin As PageLoginMsSkin
+    Public FrmLoginProfile As PageLoginProfile
+    Public FrmLoginProfileSkin As PageLoginProfileSkin
+    Public FrmLoginOffline As PageLoginOffline
 
     '版本设置页面声明
     Public FrmVersionLeft As PageVersionLeft
@@ -830,28 +830,34 @@ NextFile:
     ''' 将特定程序设置为使用高性能显卡启动。
     ''' 如果失败，则抛出异常。
     ''' </summary>
-    Public Sub SetGPUPreference(Executeable As String)
-        Const REG_KEY As String = "Software\Microsoft\DirectX\UserGpuPreferences"
-        Const REG_VALUE As String = "GpuPreference=2;"
+    Public Sub SetGPUPreference(Executeable As String, Optional WantHighPerformance As Boolean = True)
+        Const GPU_PERFERENCE_REG_KEY As String = "Software\Microsoft\DirectX\UserGpuPreferences"
+        Const GPU_PERFERENCE_REG_VALUE_HIGH As String = "GpuPreference=2;"
+        Const GPU_PERFERENCE_REG_VALUE_DEFAULT As String = "GpuPreference=0;"
+        'Const GPU_PERFERENCE_REG_VALUE_POWER_SAVING As String = "GpuPreference=1;"
+
+        Dim IsCurrentHighPerformance As Boolean = False
         '查看现有设置
-        Using ReadOnlyKey = My.Computer.Registry.CurrentUser.OpenSubKey(REG_KEY, False)
+        Using ReadOnlyKey = My.Computer.Registry.CurrentUser.OpenSubKey(GPU_PERFERENCE_REG_KEY, False)
             If ReadOnlyKey IsNot Nothing Then
                 Dim CurrentValue = ReadOnlyKey.GetValue(Executeable)
-                If REG_VALUE = CurrentValue?.ToString() Then
-                    Log($"[System] 无需调整显卡设置：{Executeable}")
-                    Return
+                If GPU_PERFERENCE_REG_VALUE_HIGH = CurrentValue?.ToString() Then
+                    IsCurrentHighPerformance = True
                 End If
             Else
                 '创建父级键
                 Log($"[System] 需要创建显卡设置的父级键")
-                My.Computer.Registry.CurrentUser.CreateSubKey(REG_KEY)
+                My.Computer.Registry.CurrentUser.CreateSubKey(GPU_PERFERENCE_REG_KEY)
             End If
         End Using
-        '写入新设置
-        Using WriteKey = My.Computer.Registry.CurrentUser.OpenSubKey(REG_KEY, True)
-            WriteKey.SetValue(Executeable, REG_VALUE)
-            Log($"[System] 已调整显卡设置：{Executeable}")
-        End Using
+        Log($"[System] 当前程序 ({Executeable}) 的显卡设置为高性能: {IsCurrentHighPerformance}")
+        If IsCurrentHighPerformance Xor WantHighPerformance Then
+            '写入新设置
+            Using WriteKey = My.Computer.Registry.CurrentUser.OpenSubKey(GPU_PERFERENCE_REG_KEY, True)
+                WriteKey.SetValue(Executeable, If(WantHighPerformance, GPU_PERFERENCE_REG_VALUE_HIGH, GPU_PERFERENCE_REG_VALUE_DEFAULT))
+                Log($"[System] 已调整程序 ({Executeable}) 显卡设置: {WantHighPerformance}")
+            End Using
+        End If
     End Sub
 
 #End Region
@@ -888,17 +894,26 @@ NextFile:
     End Sub
 
     ''' <summary>
-    ''' 申请一个可用于任务缓存的临时文件夹，以 \ 结尾。
-    ''' 这些文件夹无需进行后续清理。
+    ''' 申请一个可用于任务缓存的临时文件夹，以 \ 结尾。这些文件夹无需进行后续清理。
+    ''' 若所有缓存位置均没有权限，会抛出异常。
     ''' </summary>
     ''' <param name="RequireNonSpace">是否要求路径不包含空格。</param>
     Public Function RequestTaskTempFolder(Optional RequireNonSpace As Boolean = False) As String
         TryClearTaskTemp()
-        RequestTaskTempFolder = $"{PathTemp}TaskTemp\{GetUuid()}-{RandomInteger(0, 1000000)}\"
-        If RequireNonSpace AndAlso RequestTaskTempFolder.Contains(" ") Then
-            RequestTaskTempFolder = $"{OsDrive}ProgramData\PCL\TaskTemp\{GetUuid()}-{RandomInteger(0, 1000000)}\"
-        End If
-        Directory.CreateDirectory(RequestTaskTempFolder)
+        Dim ResultFolder As String
+        Try
+            ResultFolder = $"{PathTemp}TaskTemp\{GetUuid()}-{RandomInteger(0, 1000000)}\"
+            If RequireNonSpace AndAlso ResultFolder.Contains(" ") Then Exit Try '带空格
+            Directory.CreateDirectory(ResultFolder)
+            CheckPermissionWithException(ResultFolder)
+            Return ResultFolder
+        Catch
+        End Try
+        '使用备用路径
+        ResultFolder = $"{OsDrive}ProgramData\PCL\TaskTemp\{GetUuid()}-{RandomInteger(0, 1000000)}\"
+        Directory.CreateDirectory(ResultFolder)
+        CheckPermission(ResultFolder)
+        Return ResultFolder
     End Function
 
 #End Region

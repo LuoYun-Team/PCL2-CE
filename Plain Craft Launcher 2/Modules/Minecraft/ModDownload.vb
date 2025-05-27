@@ -201,6 +201,7 @@
     Public DlClientListMojangLoader As New LoaderTask(Of String, DlClientListResult)("DlClientList Mojang", AddressOf DlClientListMojangMain)
     Private IsNewClientVersionHinted As Boolean = False
     Private Sub DlClientListMojangMain(Loader As LoaderTask(Of String, DlClientListResult))
+        Dim StartTime As Long = GetTimeTick()
         Dim Json As JObject = NetGetCodeByRequestRetry("https://launchermeta.mojang.com/mc/game/version_manifest.json", IsJson:=True)
         Try
             Dim Versions As JArray = Json("versions")
@@ -210,14 +211,6 @@
             If Not File.Exists(CacheFilePath) Then
                 Try
                     Dim UnlistedJson As JObject = NetGetCodeByRequestRetry("https://zkitefly.github.io/unlisted-versions-of-minecraft/version_manifest.json", IsJson:=True)
-                    For Each versionuvmc As JObject In UnlistedJson("versions")
-                        If versionuvmc("type").ToString() = "pending" OrElse versionuvmc("type").ToString() = "release" Then
-                            versionuvmc("type") = "snapshot"
-                        End If
-                        If versionuvmc("id").ToString().StartsWithF("1.0.0-rc") OrElse versionuvmc("id").ToString.StartsWithF("b1.9-pre") AndAlso versionuvmc("type").ToString() = "snapshot" Then
-                            versionuvmc("type") = "old_beta"
-                        End If
-                    Next
                     File.WriteAllText(CacheFilePath, UnlistedJson.ToString())
                 Catch ex As Exception
                     Log("[Download] 未列出的版本官方源下载失败: " & ex.Message)
@@ -226,6 +219,14 @@
                 Dim CachedJson As JObject = GetJson(ReadFile(CacheFilePath))
                 Versions.Merge(CachedJson("versions"))
             End If
+            '确定官方源是否可用
+            If Not DlPreferMojang Then
+                Dim DeltaTime = GetTimeTick() - StartTime
+                DlPreferMojang = DeltaTime < 4000
+                Log($"[Download] Mojang 官方源加载耗时：{DeltaTime}ms，{If(DlPreferMojang, "可优先使用官方源", "不优先使用官方源")}")
+            End If
+            '添加 PCL 特供项
+            If File.Exists(PathTemp & "Cache\download.json") Then Versions.Merge(GetJson(ReadFile(PathTemp & "Cache\download.json")))
             '返回
             Loader.Output = New DlClientListResult With {.IsOfficial = True, .SourceName = "Mojang 官方源", .Value = Json}
             '解析更新提示（Release）
@@ -259,15 +260,7 @@
             Dim CacheFilePath As String = PathTemp & "Cache\uvmc-download.json"
             If Not File.Exists(CacheFilePath) Then
                 Try
-                    Dim UnlistedJson As JObject = NetGetCodeByRequestRetry("https://vip.123pan.cn/1821946486/unlisted-versions-of-minecraft/version_manifest.json", IsJson:=True)
-                    For Each versionuvmc As JObject In UnlistedJson("versions")
-                        If versionuvmc("type").ToString() = "pending" OrElse versionuvmc("type").ToString() = "release" Then
-                            versionuvmc("type") = "snapshot"
-                        End If
-                        If versionuvmc("id").ToString().StartsWithF("1.0.0-rc") OrElse versionuvmc("id").ToString.StartsWithF("b1.9-pre") AndAlso versionuvmc("type").ToString() = "snapshot" Then
-                            versionuvmc("type") = "old_beta"
-                        End If
-                    Next
+                    Dim UnlistedJson As JObject = NetGetCodeByRequestRetry("https://raw.gitcode.com/zkitefly/unlisted-versions-of-minecraft/raw/main/version_manifest.json", IsJson:=True)
                     File.WriteAllText(CacheFilePath, UnlistedJson.ToString())
                 Catch ex As Exception
                     Log("[Download] 未列出的版本镜像源下载失败: " & ex.Message)
@@ -1325,6 +1318,59 @@
         Sub(Task As LoaderTask(Of Integer, List(Of CompFile))) Task.Output = CompFilesGet("qsl", False))
 #End Region
 
+#Region "DlLabyModList | LabyMod 列表"
+
+    Public Structure DlLabyModListResult
+        ''' <summary>
+        ''' 获取到的数据。
+        ''' </summary>
+        Public Value As JObject
+    End Structure
+
+    ''' <summary>
+    ''' LabyMod 列表，主加载器。
+    ''' </summary>
+    Public DlLabyModListLoader As New LoaderTask(Of Integer, DlLabyModListResult)("DlLabyModList Main", AddressOf DlLabyModListMain)
+    Private Sub DlLabyModListMain(Loader As LoaderTask(Of Integer, DlLabyModListResult))
+        Select Case Setup.Get("ToolDownloadVersion")
+            Case 0
+                DlSourceLoader(Loader, New List(Of KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)) From {
+                    New KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)(DlLabyModListOfficialLoader, 30),
+                    New KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)(DlLabyModListOfficialLoader, 60)
+                }, Loader.IsForceRestarting)
+            Case 1
+                DlSourceLoader(Loader, New List(Of KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)) From {
+                    New KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)(DlLabyModListOfficialLoader, 5),
+                    New KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)(DlLabyModListOfficialLoader, 35)
+                }, Loader.IsForceRestarting)
+            Case Else
+                DlSourceLoader(Loader, New List(Of KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)) From {
+                    New KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)(DlLabyModListOfficialLoader, 60),
+                    New KeyValuePair(Of LoaderTask(Of Integer, DlLabyModListResult), Integer)(DlLabyModListOfficialLoader, 60)
+                }, Loader.IsForceRestarting)
+        End Select
+    End Sub
+
+    ''' <summary>
+    ''' LabyMod 列表，官方源。
+    ''' </summary>
+    Public DlLabyModListOfficialLoader As New LoaderTask(Of Integer, DlLabyModListResult)("DlLabyModList Official", AddressOf DlLabyModListOfficialMain)
+    Private Sub DlLabyModListOfficialMain(Loader As LoaderTask(Of Integer, DlLabyModListResult))
+        Dim ResultProduction As JObject = NetGetCodeByRequestRetry("https://releases.r2.labymod.net/api/v1/manifest/production/latest.json", IsJson:=True)
+        Dim ResultSnapshot As JObject = NetGetCodeByRequestRetry("https://releases.r2.labymod.net/api/v1/manifest/snapshot/latest.json", IsJson:=True)
+        Dim Result As New JObject
+        Result.Add("production", ResultProduction)
+        Result.Add("snapshot", ResultSnapshot)
+        Try
+            Dim Output = New DlLabyModListResult With {.Value = Result}
+            If Output.Value("production")("labyModVersion") Is Nothing OrElse Output.Value("snapshot")("labyModVersion") Is Nothing Then Throw New Exception("获取到的列表缺乏必要项")
+            Loader.Output = Output
+        Catch ex As Exception
+            Throw New Exception("LabyMod 版本列表解析失败（" & Result.ToString & "）", ex)
+        End Try
+    End Sub
+#End Region
+
 #Region "DlMod | Mod 镜像源请求"
 
     ''' <summary>
@@ -1335,30 +1381,33 @@
         Dim Urls As New List(Of KeyValuePair(Of String, Integer))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 20))
-        'Dim McimUrl As String = DlSourceModGet(Url)
-        'If McimUrl <> Url Then
-        '    Select Case Setup.Get("ToolDownloadMod")
-        '        Case 0
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '        Case 1
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '        Case Else
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '            Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '    End Select
-        'End If
+        Dim McimUrl As String = DlSourceModGet(Url)
+        If McimUrl <> Url Then
+            Select Case Setup.Get("ToolDownloadMod")
+                Case 0
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                Case 1
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+                Case Else
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+            End Select
+        End If
         Dim Exs As String = ""
         For Each Source In Urls
             Try
                 Return NetGetCodeByRequestOnce(Source.Key, Encode:=Encoding.UTF8, Timeout:=Source.Value * 1000, IsJson:=IsJson, UseBrowserUserAgent:=True)
             Catch ex As Exception
-                Exs += ex.Message + vbCrLf
+                ' 镜像源可能随机爆炸，忽略就好
+                If Not ex.Message.ContainsF("mcimirrmr") Then
+                    Exs += ex.Message + vbCrLf
+                End If
             End Try
         Next
         Throw New Exception(Exs)
@@ -1372,30 +1421,32 @@
         Dim Urls As New List(Of KeyValuePair(Of String, Integer))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
         Urls.Add(New KeyValuePair(Of String, Integer)(Url, 20))
-        'Dim McimUrl As String = DlSourceModGet(Url)
-        'If McimUrl <> Url Then
-        '   Select Case Setup.Get("ToolDownloadMod")
-        '       Case 0
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '       Case 1
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '       Case Else
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
-        '           Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
-        '   End Select
-        'End If
+        Dim McimUrl As String = DlSourceModGet(Url)
+        If McimUrl <> Url Then
+            Select Case Setup.Get("ToolDownloadMod")
+                Case 0
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                Case 1
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+                Case Else
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 5))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(Url, 15))
+                    Urls.Add(New KeyValuePair(Of String, Integer)(McimUrl, 10))
+            End Select
+        End If
         Dim Exs As String = ""
         For Each Source In Urls
             Try
                 Return NetRequestOnce(Source.Key, Method, Data, ContentType, Timeout:=Source.Value * 1000)
             Catch ex As Exception
-                Exs += ex.Message + vbCrLf
+                If Not ex.Message.ContainsF("mcimirror") Then
+                    Exs += ex.Message + vbCrLf
+                End If
             End Try
         Next
         Throw New Exception(Exs)
@@ -1405,73 +1456,110 @@
 
 #Region "DlSource | 镜像下载源"
 
-    Public Function DlSourceResourceGet(Original As String) As String()
-        Original = Original.Replace("http://resources.download.minecraft.net", "https://resources.download.minecraft.net")
-        Return {
-            Original.
-                Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com/assets").
-                Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com/assets").
-                Replace("https://resources.download.minecraft.net", "https://bmclapi2.bangbang93.com/assets"),
-            Original
-        }
+    Private DlPreferMojang As Boolean = False
+    ''' <summary>
+    ''' 下载文件（而非获取版本列表）的时候，是否优先使用官方源。
+    ''' </summary>
+    Public ReadOnly Property DlSourcePreferMojang As Boolean
+        Get
+            Return Setup.Get("ToolDownloadSource") = 2 OrElse (Setup.Get("ToolDownloadSource") = 1 AndAlso DlPreferMojang)
+        End Get
+    End Property
+    ''' <summary>
+    ''' 下载文件（而非获取版本列表）的时候，根据是否优先使用官方源决定使用 Url 的顺序。
+    ''' </summary>
+    Public Function DlSourceOrder(OfficialUrls As IEnumerable(Of String), MirrorUrls As IEnumerable(Of String)) As IEnumerable(Of String)
+        Return If(DlSourcePreferMojang, OfficialUrls.Union(MirrorUrls), MirrorUrls.Union(OfficialUrls))
+    End Function
+    ''' <summary>
+    ''' 获取版本列表（而非下载文件）的时候，是否优先使用官方源。
+    ''' </summary>
+    Public ReadOnly Property DlVersionListPreferMojang As Boolean
+        Get
+            Return Setup.Get("ToolDownloadVersion") = 2 OrElse (Setup.Get("ToolDownloadVersion") = 1 AndAlso DlPreferMojang)
+        End Get
+    End Property
+    ''' <summary>
+    ''' 获取版本列表（而非下载文件）的时候，根据是否优先使用官方源决定使用 Url 的顺序。
+    ''' </summary>
+    Public Function DlVersionListOrder(OfficialUrls As IEnumerable(Of String), MirrorUrls As IEnumerable(Of String)) As IEnumerable(Of String)
+        Return If(DlVersionListPreferMojang, OfficialUrls.Union(MirrorUrls), MirrorUrls.Union(OfficialUrls))
     End Function
 
-    Public Function DlSourceLibraryGet(Original As String) As String()
+
+    ''' <summary>
+    ''' 下载 Assets 文件。
+    ''' </summary>
+    Public Function DlSourceAssetsGet(Original As String) As IEnumerable(Of String)
+        Original = Original.Replace("http://resources.download.minecraft.net", "https://resources.download.minecraft.net")
+        Return DlSourceOrder(
+            {Original},
+            {Original.
+                Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com/assets").
+                Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com/assets").
+                Replace("https://resources.download.minecraft.net", "https://bmclapi2.bangbang93.com/assets")
+            })
+    End Function
+    ''' <summary>
+    ''' 下载 Libraries 文件。
+    ''' </summary>
+    Public Function DlSourceLibraryGet(Original As String) As IEnumerable(Of String)
         If {"minecraftforge", "fabricmc", "neoforged"}.Any(Function(k) Original.Contains(k)) Then '不添加原版源
             Return {
                 Original.
                     Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com/maven").
                     Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com/maven").
                     Replace("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/maven").
-                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://vip.123pan.cn/1821946486/unlisted-versions-of-minecraft"),
+                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://raw.gitcode.com/zkitefly/unlisted-versions-of-minecraft/raw/main"),
                 Original.
                     Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com/libraries").
                     Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com/libraries").
                     Replace("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/libraries").
-                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://vip.123pan.cn/1821946486/unlisted-versions-of-minecraft")
+                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://raw.gitcode.com/zkitefly/unlisted-versions-of-minecraft/raw/main")
             }
         Else
-            Return {
-                Original.
+            Return DlSourceOrder(
+                {Original},
+                {Original.
                     Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com/maven").
                     Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com/maven").
                     Replace("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/maven").
-                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://vip.123pan.cn/1821946486/unlisted-versions-of-minecraft"),
+                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://raw.gitcode.com/zkitefly/unlisted-versions-of-minecraft/raw/main"),
                 Original.
                     Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com/libraries").
                     Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com/libraries").
                     Replace("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/libraries").
-                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://vip.123pan.cn/1821946486/unlisted-versions-of-minecraft"),
+                    Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://raw.gitcode.com/zkitefly/unlisted-versions-of-minecraft/raw/main"),
                 Original
-            }
+            })
         End If
     End Function
-
-    Public Function DlSourceModGet(Original As String) As String
-        Return Original
-        'Return Original.
-        '    Replace("api.modrinth.com", "mod.mcimirror.top/modrinth").
-        '    Replace("staging-api.modrinth.com", "mod.mcimirror.top/modrinth").
-        '    Replace("cdn.modrinth.com", "mod.mcimirror.top").
-        '    Replace("api.curseforge.com", "mod.mcimirror.top/curseforge").
-        '    Replace("edge.forgecdn.net", "mod.mcimirror.top").
-        '    Replace("mediafilez.forgecdn.net", "mod.mcimirror.top").
-        '    Replace("media.forgecdn.net", "mod.mcimirror.top")
-    End Function
-
-    Public Function DlSourceLauncherOrMetaGet(Original As String) As String()
+    ''' <summary>
+    ''' 下载 Launcher 或 Meta 文件。
+    ''' 不应使用它来获取版本列表（因为它只使用文件下载源设置来决定源顺序）。
+    ''' </summary>
+    Public Function DlSourceLauncherOrMetaGet(Original As String) As IEnumerable(Of String)
         If Original Is Nothing Then Throw New Exception("无对应的 json 下载地址")
-        Return {
-            Original.
+        Return DlSourceOrder(
+            {Original},
+            {Original.
                 Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com").
                 Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com").
                 Replace("https://launcher.mojang.com", "https://bmclapi2.bangbang93.com").
                 Replace("https://launchermeta.mojang.com", "https://bmclapi2.bangbang93.com").
-                Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://vip.123pan.cn/1821946486/unlisted-versions-of-minecraft"),
+                Replace("https://zkitefly.github.io/unlisted-versions-of-minecraft", "https://raw.gitcode.com/zkitefly/unlisted-versions-of-minecraft/raw/main"),
             Original
-        }
+        })
     End Function
 
+    'Mod 下载源
+    Public Function DlSourceModGet(Original As String) As String
+        Return Original.
+                Replace("https://api.modrinth.com", "https://mod.mcimirror.top/modrinth").
+                Replace("https://api.curseforge.com", "https://mod.mcimirror.top/curseforge")
+    End Function
+
+    'Loader 自动切换
     Private Sub DlSourceLoader(Of InputType, OutputType)(MainLoader As LoaderTask(Of InputType, OutputType),
                                                          LoaderList As List(Of KeyValuePair(Of LoaderTask(Of InputType, OutputType), Integer)),
                                                          Optional IsForceRestart As Boolean = False)
