@@ -1,5 +1,7 @@
 ﻿Imports System.IO.Compression
 
+'TODO: CurseForge/MMC/MCBBS v2 支持
+
 Public Class ExportOption
     Public Property Title As String
     Public Property Description As String
