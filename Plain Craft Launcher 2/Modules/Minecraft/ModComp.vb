@@ -1582,9 +1582,12 @@ Retry:
         ''' </summary>
         Public Shared Function HandleCurseForgeDownloadUrls(Url As String) As List(Of String)
             Return {
+                Url.Replace("-service.overwolf.wtf", ".forgecdn.net").Replace("://edge.", "://mediafilez.").Replace("://media.", "://mediafilez."),
+                Url.Replace("://edge.", "://mediafilez.").Replace("://media.", "://mediafilez."),
+                Url,
+                Url.Replace("-service.overwolf.wtf", ".forgecdn.net").Replace("://edge.", "://media."),
                 Url.Replace("-service.overwolf.wtf", ".forgecdn.net"),
-                Url.Replace("-service.overwolf.wtf", ".forgecdn.net"),
-                Url
+                Url.Replace("://edge.", "://media.")
             }.Distinct.ToList
         End Function
 
